@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 4ca9e356246b0476689ec7d717a56753
+timeCreated: 1503028415
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 98244
+  packageName: Sci-Fi Interior Low Poly Pack
+  packageVersion: 1.1
+  assetPath: Assets/SciFiPack1/Prefabs/scifi_wall_2sided_window_rect.prefab
+  uploadId: 224481

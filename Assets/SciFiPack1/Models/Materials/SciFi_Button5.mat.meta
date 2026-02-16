@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 8403b62069e594145a69d62ddeceba19
+timeCreated: 1502827504
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 98244
+  packageName: Sci-Fi Interior Low Poly Pack
+  packageVersion: 1.1
+  assetPath: Assets/SciFiPack1/Models/Materials/SciFi_Button5.mat
+  uploadId: 224481

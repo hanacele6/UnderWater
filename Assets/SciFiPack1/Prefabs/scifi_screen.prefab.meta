@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 389c03c20a5c44182b01467ea1918874
+timeCreated: 1503028420
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 98244
+  packageName: Sci-Fi Interior Low Poly Pack
+  packageVersion: 1.1
+  assetPath: Assets/SciFiPack1/Prefabs/scifi_screen.prefab
+  uploadId: 224481

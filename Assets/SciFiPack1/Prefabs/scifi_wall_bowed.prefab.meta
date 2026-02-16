@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 43e5f2da9a33143e39a96475dc2e1645
+timeCreated: 1503028423
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 98244
+  packageName: Sci-Fi Interior Low Poly Pack
+  packageVersion: 1.1
+  assetPath: Assets/SciFiPack1/Prefabs/scifi_wall_bowed.prefab
+  uploadId: 224481

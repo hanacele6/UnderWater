@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 04dd563b9a33a49c784b0d88a6d45b73
+timeCreated: 1503028597
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 98244
+  packageName: Sci-Fi Interior Low Poly Pack
+  packageVersion: 1.1
+  assetPath: Assets/SciFiPack1/Prefabs/scifi_ladder_2.prefab
+  uploadId: 224481

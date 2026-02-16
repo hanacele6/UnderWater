@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: f68d5b67efbf544379c191eef3d7db5d
+timeCreated: 1503065302
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 98244
+  packageName: Sci-Fi Interior Low Poly Pack
+  packageVersion: 1.1
+  assetPath: Assets/SciFiPack1/Prefabs/scifi_stairs.prefab
+  uploadId: 224481

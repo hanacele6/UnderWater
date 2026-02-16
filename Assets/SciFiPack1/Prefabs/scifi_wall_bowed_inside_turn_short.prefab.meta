@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 743807953291d4bc6b4cdffb47b5f6fd
+timeCreated: 1503028423
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 98244
+  packageName: Sci-Fi Interior Low Poly Pack
+  packageVersion: 1.1
+  assetPath: Assets/SciFiPack1/Prefabs/scifi_wall_bowed_inside_turn_short.prefab
+  uploadId: 224481

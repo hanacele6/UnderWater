@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 869cb09647ccf4b3ca26b0341ced3ad2
+timeCreated: 1503028414
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 98244
+  packageName: Sci-Fi Interior Low Poly Pack
+  packageVersion: 1.1
+  assetPath: Assets/SciFiPack1/Prefabs/scifi_light_5.prefab
+  uploadId: 224481

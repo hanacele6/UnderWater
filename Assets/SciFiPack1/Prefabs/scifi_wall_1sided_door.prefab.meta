@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 7fd715f3204ca4ab3be15e7bdf577d75
+timeCreated: 1503028416
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 98244
+  packageName: Sci-Fi Interior Low Poly Pack
+  packageVersion: 1.1
+  assetPath: Assets/SciFiPack1/Prefabs/scifi_wall_1sided_door.prefab
+  uploadId: 224481

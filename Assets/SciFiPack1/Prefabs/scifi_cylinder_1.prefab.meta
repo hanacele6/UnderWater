@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 3f74015842ef64fda864186b4a0974d6
+timeCreated: 1503028413
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 98244
+  packageName: Sci-Fi Interior Low Poly Pack
+  packageVersion: 1.1
+  assetPath: Assets/SciFiPack1/Prefabs/scifi_cylinder_1.prefab
+  uploadId: 224481

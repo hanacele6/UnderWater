@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 7e16a08a2fc4f432dac86d2b4b60f9a8
+timeCreated: 1503027676
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 36300000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 98244
+  packageName: Sci-Fi Interior Low Poly Pack
+  packageVersion: 1.1
+  assetPath: Assets/SciFiPack1/Scenes/scifi_example/OcclusionCullingData.asset
+  uploadId: 224481

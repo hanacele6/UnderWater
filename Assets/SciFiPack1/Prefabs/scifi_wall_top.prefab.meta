@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: ac5c7a2f7a55144888bea18cca412b99
+timeCreated: 1503028420
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 98244
+  packageName: Sci-Fi Interior Low Poly Pack
+  packageVersion: 1.1
+  assetPath: Assets/SciFiPack1/Prefabs/scifi_wall_top.prefab
+  uploadId: 224481

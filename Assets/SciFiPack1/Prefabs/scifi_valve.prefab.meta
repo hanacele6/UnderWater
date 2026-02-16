@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: af1b153276f104f09a2f94bba9c190e8
+timeCreated: 1503065217
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 98244
+  packageName: Sci-Fi Interior Low Poly Pack
+  packageVersion: 1.1
+  assetPath: Assets/SciFiPack1/Prefabs/scifi_valve.prefab
+  uploadId: 224481

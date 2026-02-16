@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: ca60e5ec076ed45d1b5e9e72894426c2
+timeCreated: 1503028418
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 98244
+  packageName: Sci-Fi Interior Low Poly Pack
+  packageVersion: 1.1
+  assetPath: Assets/SciFiPack1/Prefabs/scifi_bed.prefab
+  uploadId: 224481

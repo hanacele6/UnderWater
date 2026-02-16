@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 7df82e75d1b6a4bbe899884ba96f1732
+timeCreated: 1503065217
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 98244
+  packageName: Sci-Fi Interior Low Poly Pack
+  packageVersion: 1.1
+  assetPath: Assets/SciFiPack1/Prefabs/scifi_bench.prefab
+  uploadId: 224481

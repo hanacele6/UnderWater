@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: b239003f5b5fa4b079e1d5bfcaf22422
+timeCreated: 1503028421
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 98244
+  packageName: Sci-Fi Interior Low Poly Pack
+  packageVersion: 1.1
+  assetPath: Assets/SciFiPack1/Prefabs/scifi_floor_3.prefab
+  uploadId: 224481

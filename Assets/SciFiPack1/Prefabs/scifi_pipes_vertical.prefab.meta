@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 46914cbd278b04615bbca3b1acd85c7f
+timeCreated: 1503028416
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 98244
+  packageName: Sci-Fi Interior Low Poly Pack
+  packageVersion: 1.1
+  assetPath: Assets/SciFiPack1/Prefabs/scifi_pipes_vertical.prefab
+  uploadId: 224481
