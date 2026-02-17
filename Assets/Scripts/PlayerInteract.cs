@@ -10,30 +10,33 @@ public class PlayerInteract : MonoBehaviour
         Ray ray = mainCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
         RaycastHit hit;
 
-        // 何かにぶつかったら
         if (Physics.Raycast(ray, out hit, interactDistance))
         {
-            EvidenceItem item = hit.collider.GetComponent<EvidenceItem>();
-            
-            // ぶつかった相手が EvidenceItem だったら
-            if (item != null)
-            {
-                UIManager.Instance.ShowInteractPrompt(true); // 【追加】「[E] 調べる」を表示
+            // ★ EvidenceItem や DoorController を個別に探すのではなく、
+            // 「IInteractable（調べる機能）」を持っているかだけを確認する！
+            IInteractable interactable = hit.collider.GetComponentInParent<IInteractable>();
 
+            if (interactable != null)
+            {
+                // ① 対象からプロンプトのテキストをもらって、画面に表示する
+                UIManager.Instance.ShowInteractPrompt(interactable.GetInteractPrompt());
+
+                // ② Eキーを押したら、対象の Interact() を実行する
                 if (Input.GetKeyDown(KeyCode.E))
                 {
-                    item.Interact();
-                    UIManager.Instance.ShowInteractPrompt(false); // 【追加】拾ったら消す
+                    interactable.Interact();
                 }
             }
             else
             {
-                UIManager.Instance.ShowInteractPrompt(false); // 【追加】アイテムじゃない物を見ている時は消す
+                // 何も持っていない壁などを見ている時は消す（空文字を渡す）
+                UIManager.Instance.ShowInteractPrompt("");
             }
         }
         else
         {
-            UIManager.Instance.ShowInteractPrompt(false); // 【追加】何も見ていない時は消す
+            // 何も見ていない時は消す
+            UIManager.Instance.ShowInteractPrompt("");
         }
     }
 }

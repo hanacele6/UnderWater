@@ -122,8 +122,19 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    public void ShowInteractPrompt(bool isShowing)
+    public void ShowInteractPrompt(string promptText)
     {
-        interactPrompt.SetActive(isShowing);
+        // 受け取った文字が空っぽ（""）じゃなければ表示する
+        if (!string.IsNullOrEmpty(promptText))
+        {
+            // UIのテキストを書き換える
+            interactPrompt.GetComponent<TextMeshProUGUI>().text = "[E] " + promptText;
+            interactPrompt.SetActive(true);
+        }
+        else
+        {
+            // 空っぽなら非表示にする
+            interactPrompt.SetActive(false);
+        }
     }
 }

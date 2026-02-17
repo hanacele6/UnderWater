@@ -1,26 +1,27 @@
 using UnityEngine;
 
-public class EvidenceItem : MonoBehaviour
+public class EvidenceItem : MonoBehaviour, IInteractable 
 {
-    public ItemData itemData; 
+    public ItemData itemData;
+    
+    // Inspectorから好きなテキストを設定できるようにする（初期値は「調べる」）
+    public string promptMessage = "調べる"; 
 
     public void Interact()
     {
-        // 1. もしデータがセットされていなければエラーを出して処理を止める
-        if (itemData == null)
-        {
-            Debug.LogError("このアイテムには ItemData がセットされていません！: " + gameObject.name);
-            return;
-        }
-
-        // 2. 「〇〇を手に入れた」とメッセージを出す（名前はItemDataから取ってくる）
+        if (itemData == null) return;
+        
         UIManager.Instance.ShowMessage("【" + itemData.itemName + "】 を手に入れた");
-
-        // 3. インベントリ（InventoryManager）に、この itemData を渡してリストに追加してもらう
         InventoryManager.Instance.AddItem(itemData);
-
-        // 4. このオブジェクト自体をゲームの世界から消去する
         Destroy(gameObject);
-        UIManager.Instance.ShowInteractPrompt(false); // 消える時に「調べる」表記も消す
+        
+        // ★消える時はプロンプトも消す（引数を false から空文字に変更する準備）
+        UIManager.Instance.ShowInteractPrompt(""); 
+    }
+
+    // ★ IInteractable のルールに従って、プロンプトのテキストを返すメソッドを追加
+    public string GetInteractPrompt()
+    {
+        return promptMessage;
     }
 }
