@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 1715412883292554501}
   - component: {fileID: 3690998871137351083}
   - component: {fileID: 98629358373153763}
+  - component: {fileID: -6917319487990201543}
   - component: {fileID: 395381763341598647}
   m_Layer: 0
   m_Name: Sphere
@@ -110,6 +111,33 @@ SphereCollider:
   serializedVersion: 3
   m_Radius: 0.5
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!54 &-6917319487990201543
+Rigidbody:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3122348871768201078}
+  serializedVersion: 4
+  m_Mass: 1
+  m_Drag: 0
+  m_AngularDrag: 0.05
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 1
+  m_IsKinematic: 0
+  m_Interpolate: 0
+  m_Constraints: 0
+  m_CollisionDetection: 0
 --- !u!114 &395381763341598647
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -122,7 +150,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8ba8cdf5a6ebc7247b5c0f9d4b10d6f2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  evidenceText: "\u3053\u3053\u306B\u8A3C\u62E0\u54C1\u306E\u30C6\u30AD\u30B9\u30C8\u3092\u66F8\u304D\u307E\u3059\u3002"
+  itemData: {fileID: 0}
+  promptMessage: "\u8ABF\u3079\u308B"
 --- !u!1001 &17942266476888882
 PrefabInstance:
   m_ObjectHideFlags: 0

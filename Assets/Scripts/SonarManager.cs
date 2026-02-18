@@ -9,6 +9,19 @@ public class SonarManager : MonoBehaviour
     public Transform radarCenter;
     [Tooltip("今回追加：ピクセルを描画する透明なキャンバス")]
     public RawImage sonarDisplayImage; 
+
+    [Tooltip("回転させる外周のコンパス画像")]
+    public RectTransform compassRing;
+
+    [Tooltip("向きをまっすぐに固定する文字のTransformを入れてください")]
+    public Transform[] compassLabels;
+
+    [Header("Information Display")]
+    public SubmarineStatus subStatus;         
+    public TMPro.TMP_Text statusDisplayText;
+
+
+
     
     public GameObject blipPrefab;
 
@@ -16,7 +29,7 @@ public class SonarManager : MonoBehaviour
     public float rotationSpeed = 180f;
     public Transform player;
     public float sonarRange = 50f;
-    public float radarUIRadius = 300f;
+    private float radarUIRadius;
     public LayerMask wallLayer; 
 
     [Header("Echo Visuals (Texture)")]
@@ -47,6 +60,26 @@ public class SonarManager : MonoBehaviour
             targets.Add(target);
             GameObject newBlip = Instantiate(blipPrefab, radarCenter);
             newBlip.SetActive(false);
+            // ==========================================
+            // ターゲットの種類に応じて光点の色を変える
+            // ==========================================
+            Image blipImage = newBlip.GetComponent<Image>();
+            if (blipImage != null)
+            {
+                switch (target.targetType)
+                {
+                    case SubmarineTargetType.Mine:
+                        blipImage.color = Color.red; // 機雷は真っ赤
+                        break;
+                    case SubmarineTargetType.HostileBio:
+                        blipImage.color = new Color(1f, 0.4f, 0f); // 敵性生物はオレンジ
+                        break;
+                    case SubmarineTargetType.NeutralBio:
+                        blipImage.color = Color.cyan; // 中立生物は水色
+                        break;
+                }
+            }
+
             blips.Add(newBlip);
         }
 
@@ -63,6 +96,10 @@ public class SonarManager : MonoBehaviour
         sonarDisplayImage.texture = sonarTexture;
         
         centerPixel = textureSize / 2;
+
+        RectTransform rt = sonarDisplayImage.GetComponent<RectTransform>();
+        // Widthの半分をレーダーの半径とする
+        radarUIRadius = rt.rect.width / 2f;
     }
 
     void Update()
@@ -132,6 +169,41 @@ public class SonarManager : MonoBehaviour
         sweepLine.localEulerAngles = new Vector3(0, 0, currentSweepAngle);
 
         UpdateBlips();
+
+        // ==========================================
+        // コンパスリングの回転（プレイヤーと連動）
+        // ==========================================
+        if (compassRing != null)
+        {
+            
+            compassRing.localEulerAngles = new Vector3(0, 0, player.eulerAngles.y);
+            // 文字だけを「常に上向き」に固定（逆回転）する
+            if (compassLabels != null)
+            {
+                foreach (Transform label in compassLabels)
+                {
+                    // World Spaceで常に角度を0（真っ直ぐ）に保つ最強の1行
+                    label.eulerAngles = Vector3.zero;
+                }
+            }
+        }
+
+        // ==========================================
+        // 情報ディスプレイの更新
+        // ==========================================
+        if (subStatus != null && statusDisplayText != null)
+        {
+            // プレイヤーのY軸を「方角（0〜360度）」として綺麗に表示する計算
+           float heading = Mathf.Repeat(player.eulerAngles.y, 360f);
+
+            // F0は小数点以下切り捨て、F1は小数点第1位まで表示するフォーマットです
+            statusDisplayText.text = 
+                $"HULL INTEG : {subStatus.currentHP:F0} / {subStatus.maxHP:F0}\n\n" +
+                $"SPEED      : {subStatus.currentSpeed:F1} KTS\n" +
+                $"TURN RATE  : {subStatus.currentTurnRate:F1} DEG/S\n" +
+                $"HEADING    : {heading:F0}°";
+        }
+
     }
 
     // ==========================================
@@ -153,26 +225,64 @@ public class SonarManager : MonoBehaviour
     {
         for (int i = 0; i < targets.Count; i++)
         {
-            if (targets[i] == null) continue;
+            // ターゲットが破壊（機雷が爆発など）されていたら、光点UIも消して次へ
+            if (targets[i] == null)
+            {
+                if (blips[i] != null && blips[i].activeSelf) blips[i].SetActive(false);
+                continue;
+            }
+
             Vector3 relativePos = targets[i].transform.position - player.position;
             float distance = new Vector2(relativePos.x, relativePos.z).magnitude;
 
             if (distance <= sonarRange)
             {
-                blips[i].SetActive(true);
-                float distanceRatio = distance / sonarRange;
+                // プレイヤーから見たターゲットの角度
                 float angle = Mathf.Atan2(relativePos.x, relativePos.z) * Mathf.Rad2Deg;
                 angle -= player.eulerAngles.y;
 
-                float angleRad = angle * Mathf.Deg2Rad;
-                float uiX = Mathf.Sin(angleRad) * distanceRatio * radarUIRadius;
-                float uiY = Mathf.Cos(angleRad) * distanceRatio * radarUIRadius;
+                float angleDiff = Mathf.Abs(Mathf.DeltaAngle(-currentSweepAngle, angle));
 
-                blips[i].transform.localPosition = new Vector3(uiX, uiY, 0);
+                UnityEngine.UI.Image blipImage = blips[i].GetComponent<UnityEngine.UI.Image>();
+
+                // ★通過判定：走査線がターゲットの5度以内を通過したら「Ping（点灯）」！
+                if (angleDiff < 5f) 
+                {
+                    blips[i].SetActive(true);
+                    
+                    if (blipImage != null)
+                    {
+                        Color c = blipImage.color;
+                        c.a = 1f; // アルファ値（透明度）を100%にして強く光らせる
+                        blipImage.color = c;
+                    }
+
+                    float distanceRatio = distance / sonarRange;
+                    float angleRad = angle * Mathf.Deg2Rad;
+                    float uiX = Mathf.Sin(angleRad) * distanceRatio * radarUIRadius;
+                    float uiY = Mathf.Cos(angleRad) * distanceRatio * radarUIRadius;
+                    blips[i].transform.localPosition = new Vector3(uiX, uiY, 0);
+                }
+
+                // ★フェードアウト処理：光っている間だけ実行
+                if (blips[i].activeSelf && blipImage != null)
+                {
+                    Color c = blipImage.color;
+                    // 毎フレーム少しずつ透明にする（0.5fなら約2秒かけてスッと消える）
+                    c.a -= Time.deltaTime * 0.5f; 
+                    blipImage.color = c;
+
+                    // 完全に透明になったら処理節約のためにUIをオフにする
+                    if (c.a <= 0f)
+                    {
+                        blips[i].SetActive(false);
+                    }
+
+                }
             }
             else
             {
-                blips[i].SetActive(false);
+                blips[i].SetActive(false); // ソナー範囲外ならオフ
             }
         }
     }
