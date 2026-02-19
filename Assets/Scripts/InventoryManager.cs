@@ -1,21 +1,26 @@
-using System.Collections.Generic; // リスト(List)を使うために必要
+using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
 using UnityEngine.UI;
+using System.Linq; 
 
 public class InventoryManager : MonoBehaviour
 {
     public static InventoryManager Instance;
 
-    // 拾ったアイテムデータを保管しておくためのリスト（カバンの中身）
     public List<ItemData> inventoryList = new List<ItemData>();
 
     [Header("UI References")]
-    public Transform contentParent; // リストを並べる場所（後でUIを作ります）
-    public GameObject itemButtonPrefab; // リストの1行（ボタン）の設計図
-
+    public Transform contentParent; 
+    public GameObject itemButtonPrefab; 
     public TextMeshProUGUI itemDetailText;
     public Image itemDetailIcon;
+
+    // ==========================================
+    // 現在開いているタブ（カテゴリ）を記憶する変数
+    // 初期値として「証拠品(Evidence)」を表示するようにしています
+    // ==========================================
+    private ItemCategory currentDisplayCategory = ItemCategory.Evidence; 
 
     private void Awake()
     {
@@ -28,14 +33,45 @@ public class InventoryManager : MonoBehaviour
         UpdateInventoryUI();
     }
 
+    // ==========================================
+    // UIの「タブボタン」から呼び出すためのメソッド群
+    // ==========================================
+    public void ChangeTabToEvidence()
+    {
+        currentDisplayCategory = ItemCategory.Evidence;
+        UpdateInventoryUI(); // タブを変えたら画面を更新！
+    }
+
+    public void ChangeTabToMaterial()
+    {
+        currentDisplayCategory = ItemCategory.Material;
+        UpdateInventoryUI();
+    }
+
+    public void ChangeTabToConsumable()
+    {
+        currentDisplayCategory = ItemCategory.Consumable;
+        UpdateInventoryUI();
+    }
+
     public void UpdateInventoryUI()
     {
+        // 1. 今表示されている古いボタンを全部消す
         foreach (Transform child in contentParent)
         {
             Destroy(child.gameObject);
         }
 
-        foreach (ItemData item in inventoryList)
+        // タブを切り替えた時は、右側の詳細画面も一旦空っぽにする
+        ClearItemDetail(); 
+
+        // ==========================================
+        // 全部ではなく「今のカテゴリに合っているもの」だけを LINQ で抽出！
+        // ==========================================
+        List<ItemData> displayItems = inventoryList.Where(item => item.category == currentDisplayCategory).ToList();
+
+        // 3. 抽出したアイテムだけでボタンを作る
+        foreach (ItemData item in displayItems)
         {
             GameObject newButton = Instantiate(itemButtonPrefab, contentParent);
 
@@ -45,11 +81,9 @@ public class InventoryManager : MonoBehaviour
                 buttonText.text = item.itemName;
             }
 
-            // 生成したボタンに「クリックされた時の処理（詳細表示）」をプログラムから直接割り当てる
             Button btn = newButton.GetComponent<Button>();
             if (btn != null)
             {
-                // ボタンが押されたら、ShowItemDetail(item) を実行するように設定
                 btn.onClick.AddListener(() => ShowItemDetail(item)); 
             }
         }
@@ -57,36 +91,25 @@ public class InventoryManager : MonoBehaviour
 
     public void ShowItemDetail(ItemData item)
     {
-        if (itemDetailText != null)
-        {
-            itemDetailText.text = item.description; 
-        }
+        if (itemDetailText != null) itemDetailText.text = item.description; 
 
         if (itemDetailIcon != null)
         {
-            if (item.itemIcon != null) // アイコン画像が設定されている場合
+            if (item.itemIcon != null) 
             {
-                itemDetailIcon.sprite = item.itemIcon; // 画像を入れ替える
-                itemDetailIcon.enabled = true;         // UIを表示する
+                itemDetailIcon.sprite = item.itemIcon; 
+                itemDetailIcon.enabled = true;        
             }
-            else // アイコン画像が設定されていない場合（透明な四角が出ないようにする）
+            else 
             {
-                itemDetailIcon.enabled = false;        // UIを隠す
+                itemDetailIcon.enabled = false;        
             }
         }
     }
     
     public void ClearItemDetail()
     {
-        if (itemDetailText != null)
-        {
-            itemDetailText.text = ""; // テキストを空にする
-        }
-
-        if (itemDetailIcon != null)
-        {
-            itemDetailIcon.enabled = false; // アイコン画像自体を非表示にする
-        }
+        if (itemDetailText != null) itemDetailText.text = ""; 
+        if (itemDetailIcon != null) itemDetailIcon.enabled = false; 
     }
-    
 }

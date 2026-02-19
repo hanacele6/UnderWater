@@ -4,6 +4,9 @@ public class PlayerInteract : MonoBehaviour
 {
     [SerializeField] private float interactDistance = 3f;
 
+    // カメラのコントローラー変数はもう不要なので削除しました！
+    private InteractableHighlight currentHighlightTarget;
+
     void Update()
     {
         Camera mainCamera = Camera.main;
@@ -12,31 +15,48 @@ public class PlayerInteract : MonoBehaviour
 
         if (Physics.Raycast(ray, out hit, interactDistance))
         {
-            // ★ EvidenceItem や DoorController を個別に探すのではなく、
-            // 「IInteractable（調べる機能）」を持っているかだけを確認する！
-            IInteractable interactable = hit.collider.GetComponentInParent<IInteractable>();
+            // ==========================================
+            // ① アウトラインの判定
+            // ==========================================
+            InteractableHighlight highlightMark = hit.collider.GetComponentInParent<InteractableHighlight>();
 
+            // 見ている対象が変わった時だけ処理する
+            if (currentHighlightTarget != highlightMark)
+            {
+                // 前のターゲットの光を消す
+                if (currentHighlightTarget != null) currentHighlightTarget.ToggleHighlight(false);
+
+                // 新しいターゲットを光らせる
+                currentHighlightTarget = highlightMark;
+                if (currentHighlightTarget != null) currentHighlightTarget.ToggleHighlight(true);
+            }
+
+            // ==========================================
+            // ② インタラクトの判定（変更なし）
+            // ==========================================
+            IInteractable interactable = hit.collider.GetComponentInParent<IInteractable>();
             if (interactable != null)
             {
-                // ① 対象からプロンプトのテキストをもらって、画面に表示する
                 UIManager.Instance.ShowInteractPrompt(interactable.GetInteractPrompt());
-
-                // ② Eキーを押したら、対象の Interact() を実行する
-                if (Input.GetKeyDown(KeyCode.E))
-                {
-                    interactable.Interact();
-                }
+                if (Input.GetKeyDown(KeyCode.E)) interactable.Interact();
             }
             else
             {
-                // 何も持っていない壁などを見ている時は消す（空文字を渡す）
                 UIManager.Instance.ShowInteractPrompt("");
             }
         }
         else
         {
-            // 何も見ていない時は消す
+            // ==========================================
+            // ③ 何も見ていない時の処理
+            // ==========================================
             UIManager.Instance.ShowInteractPrompt("");
+
+            if (currentHighlightTarget != null)
+            {
+                currentHighlightTarget.ToggleHighlight(false);
+                currentHighlightTarget = null;
+            }
         }
     }
 }

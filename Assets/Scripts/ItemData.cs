@@ -1,5 +1,13 @@
 using UnityEngine;
 
+public enum ItemCategory
+{
+    Evidence,   // 証拠品（ストーリー進行に関わる貴重品）
+    Material,   // 素材・ジャンク（修理やクラフトに使うもの）
+    Consumable, // 消費アイテム（回復キットなど）
+    Other       // その他
+}
+
 // 右クリックメニューからこのデータを作成できるようにする魔法の1行
 [CreateAssetMenu(fileName = "NewItem", menuName = "Inventory/ItemData")]
 public class ItemData : ScriptableObject
@@ -8,4 +16,7 @@ public class ItemData : ScriptableObject
     [TextArea(3, 5)]
     public string description; // 詳細な説明テキスト
     public Sprite itemIcon; // 後UIにアイコンを表示したい時用
+
+    [Header("分類")]
+    public ItemCategory category = ItemCategory.Material;
 }
