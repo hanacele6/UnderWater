@@ -1,7 +1,8 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using TMPro; // TextMeshProを使う場合
+using TMPro; 
+using UnityEngine.UI;
 
 public class DialogueManager : MonoBehaviour
 {
@@ -12,8 +13,12 @@ public class DialogueManager : MonoBehaviour
     public TextMeshProUGUI nameText; // 名前表示用テキスト
     public TextMeshProUGUI dialogueText; // 本文用テキスト
 
+    public Image portraitImage;
+
     private Queue<DialogueData.Sentence> sentencesQueue = new Queue<DialogueData.Sentence>();
     private bool isTalking = false;
+
+    private DialogueData currentDialogue; 
 
     void Awake()
     {
@@ -27,6 +32,8 @@ public class DialogueManager : MonoBehaviour
         dialoguePanel.SetActive(true);
         isTalking = true;
         sentencesQueue.Clear();
+
+        currentDialogue = dialogue; 
 
         // 会話データをキュー（待ち行列）に入れる
         foreach (var sentence in dialogue.sentences)
@@ -47,10 +54,23 @@ public class DialogueManager : MonoBehaviour
         }
 
         var sentence = sentencesQueue.Dequeue();
-        nameText.text = sentence.speakerName;
-        dialogueText.text = sentence.text;
         
-        // ★ここを「1文字ずつ表示」にする演出を入れると更に雰囲気が出ます
+        // 名前とテキストの更新
+        if (nameText != null) nameText.text = sentence.speakerName;
+        if (dialogueText != null) dialogueText.text = sentence.text;
+
+        if (portraitImage != null)
+        {
+            if (sentence.portrait != null)
+            {
+                portraitImage.sprite = sentence.portrait;
+                portraitImage.gameObject.SetActive(true); // 画像があれば表示
+            }
+            else
+            {
+                portraitImage.gameObject.SetActive(false); // なければ隠す
+            }
+        }
     }
 
     void EndDialogue()
@@ -58,6 +78,14 @@ public class DialogueManager : MonoBehaviour
         dialoguePanel.SetActive(false);
         isTalking = false;
         Debug.Log("会話終了");
+
+        if (currentDialogue != null && !string.IsNullOrEmpty(currentDialogue.flagToSetOnComplete))
+        {
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.SetFlag(currentDialogue.flagToSetOnComplete, true);
+            }
+        }
     }
 
     void Update()

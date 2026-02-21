@@ -28,7 +28,7 @@ public class PickupItem : MonoBehaviour, IInteractable
         Destroy(gameObject);
     }
 
-    // ★追加：コンテナから生成された時に中身をセットする用
+    // コンテナから生成された時に中身をセットする用
     public void Initialize(ItemData data)
     {
         itemData = data;

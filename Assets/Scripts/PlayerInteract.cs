@@ -3,8 +3,6 @@ using UnityEngine;
 public class PlayerInteract : MonoBehaviour
 {
     [SerializeField] private float interactDistance = 3f;
-
-    // カメラのコントローラー変数はもう不要なので削除しました！
     private InteractableHighlight currentHighlightTarget;
 
     void Update()
@@ -20,25 +18,37 @@ public class PlayerInteract : MonoBehaviour
             // ==========================================
             InteractableHighlight highlightMark = hit.collider.GetComponentInParent<InteractableHighlight>();
 
-            // 見ている対象が変わった時だけ処理する
             if (currentHighlightTarget != highlightMark)
             {
-                // 前のターゲットの光を消す
                 if (currentHighlightTarget != null) currentHighlightTarget.ToggleHighlight(false);
-
-                // 新しいターゲットを光らせる
                 currentHighlightTarget = highlightMark;
                 if (currentHighlightTarget != null) currentHighlightTarget.ToggleHighlight(true);
             }
 
             // ==========================================
-            // ② インタラクトの判定（変更なし）
+            // ② インタラクトの判定
             // ==========================================
-            IInteractable interactable = hit.collider.GetComponentInParent<IInteractable>();
-            if (interactable != null)
+            IInteractable[] interactables = hit.collider.GetComponentsInParent<IInteractable>();
+            
+            if (interactables.Length > 0)
             {
-                UIManager.Instance.ShowInteractPrompt(interactable.GetInteractPrompt());
-                if (Input.GetKeyDown(KeyCode.E)) interactable.Interact();
+                // 画面に出すテキストは、とりあえず1つ目のスクリプトのものを採用する
+                UIManager.Instance.ShowInteractPrompt(interactables[0].GetInteractPrompt());
+                
+                if (Input.GetKeyDown(KeyCode.E))
+                {
+                    // ついている全てのスクリプトの Interact() を順番に全部発動させる！
+                    foreach (var interactable in interactables)
+                    {
+                        interactable.Interact(); 
+                    }
+
+                    // GameManagerへのフェーズ移行報告は1回だけでOK
+                    if (GameManager.Instance != null)
+                    {
+                        GameManager.Instance.CheckPhaseTransition(hit.collider.gameObject);
+                    }
+                }
             }
             else
             {

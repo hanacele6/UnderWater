@@ -17,152 +17,217 @@ public class GameManager : MonoBehaviour
     public static GameManager Instance { get; private set; }
 
     [Header("現在の状況")]
-    public int currentDay = 1; // 今何日目か
+    public int currentDay = 1;
     public GamePhase currentPhase = GamePhase.Briefing;
+    private GamePhase lastPhase; // インスペクター変更検知用
 
     [Header("フラグ管理")]
-    // 文字列で管理するフラグ（例: "KeyFound", "TalkedToCaptain"）
     public Dictionary<string, bool> gameFlags = new Dictionary<string, bool>();
-
-    // フェーズが変わった時に通知を送る（UI更新やキャラ移動に使う）
     public UnityEvent<GamePhase> OnPhaseChanged;
+
+    // ==========================================
+    // データ駆動：フェーズ移行ルールの設定
+    // ==========================================
+    [System.Serializable]
+    public struct PhaseTransitionRule
+    {
+        public string memo;              // メモ（例：ソナー起動で探索へ）
+        public GameObject targetObject;  // 触る対象のオブジェクト（Hierarchyからドラッグ＆ドロップ）
+        public GamePhase requiredPhase;  // 条件：このフェーズの時だけ発動
+        public GamePhase nextPhase;      // 結果：このフェーズに移行する
+    }
+
+    [Header("フェーズ移行ルール設定")]
+    [Tooltip("どのオブジェクトを触ったら、どのフェーズに進むかを設定します")]
+    public List<PhaseTransitionRule> transitionRules = new List<PhaseTransitionRule>();
 
     void Awake()
     {
-        // シングルトン化（どこからでもアクセスできるようにする）
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
     }
 
     void Start()
     {
-        // ゲーム開始時の初期化
+        lastPhase = currentPhase;
         StartDay();
     }
 
-    // ==========================================
-    // 進行管理システム
-    // ==========================================
+#if UNITY_EDITOR
+    void Update()
+    {
+        // 記憶しているフェーズと、現在のInspectorのフェーズが違っていたら手動更新
+        if (lastPhase != currentPhase)
+        {
+            Debug.Log("Inspectorからのフェーズ変更を検知しました！");
+            ChangePhase(currentPhase); 
+        }
+    }
+#endif
 
-    // 1日の始まり
+    // ==========================================
+    // オブジェクトを調べた時のフェーズ移行チェック
+    // ==========================================
+    public void CheckPhaseTransition(GameObject interactedObject)
+    {
+        // インスペクターで設定したルールを上から順に確認
+        foreach (var rule in transitionRules)
+        {
+            // 触ったオブジェクトと、条件のフェーズが一致したらフェーズを変える
+            if (rule.targetObject == interactedObject && currentPhase == rule.requiredPhase)
+            {
+                Debug.Log($"ルール【{rule.memo}】が発動: {currentPhase} -> {rule.nextPhase}");
+                ChangePhase(rule.nextPhase);
+                return; // 1回変わったら終わる（重複発動防止）
+            }
+        }
+    }
+
+    // ==========================================
+    // 進行管理システム本体
+    // ==========================================
     public void StartDay()
     {
         Debug.Log($"=== Day {currentDay} Start ===");
         ChangePhase(GamePhase.Briefing);
     }
 
-    // フェーズを切り替えるメソッド
     public void ChangePhase(GamePhase newPhase)
     {
         currentPhase = newPhase;
+        lastPhase = currentPhase;
         Debug.Log($"フェーズ移行: {currentPhase}");
 
-        // フェーズごとの特殊処理
         switch (currentPhase)
         {
-            case GamePhase.Briefing:
-                // 朝のBGM再生や、UI表示など
-                break;
-            case GamePhase.Operation:
-                // ソナー操作の解禁など
-                break;
+            case GamePhase.Briefing: break;
+            case GamePhase.Operation: break;
             case GamePhase.EventCheck:
-                // 自動的にイベント判定を行う
-                CheckForEvents();
+                CheckForEvents(); // イベント判定を自動実行
                 break;
-            case GamePhase.Incident:
-                // 警報音を鳴らすなど
-                break;
-            case GamePhase.FreeTime:
-                // 夜のBGM、ベッドで寝れるようにするなど
-                break;
+            case GamePhase.Incident: break;
+            case GamePhase.FreeTime: break;
         }
 
-        // 他のスクリプト（UIやキャラ）に「フェーズ変わったよ！」と知らせる
+        // UIやNPCに「フェーズが変わった！」と通知する
         OnPhaseChanged?.Invoke(currentPhase);
     }
 
-    // 次のフェーズへ進む（ボタンやイベントから呼ぶ）
     public void NextPhase()
     {
         switch (currentPhase)
         {
-            case GamePhase.Briefing:
-                ChangePhase(GamePhase.Operation);
-                break;
-            case GamePhase.Operation:
-                ChangePhase(GamePhase.EventCheck);
-                break;
-            case GamePhase.Incident:
-                ChangePhase(GamePhase.FreeTime);
-                break;
-            case GamePhase.FreeTime:
-                // 夜が終わったら次の日へ
-                GoToNextDay();
-                break;
+            case GamePhase.Briefing: ChangePhase(GamePhase.Operation); break;
+            case GamePhase.Operation: ChangePhase(GamePhase.EventCheck); break;
+            case GamePhase.Incident: ChangePhase(GamePhase.FreeTime); break;
+            case GamePhase.FreeTime: GoToNextDay(); break;
         }
     }
 
     // ==========================================
-    // イベント判定システム (Step 3)
+    // イベント自動判定システム
     // ==========================================
     private void CheckForEvents()
     {
-        // ここに条件分岐を書く（将来的にはもっと複雑にできます）
-
         if (GetFlag("ReactorBroken")) 
         {
-            // 例：リアクターが壊れているフラグがあれば事件発生！
             Debug.Log("【イベント発生】原子炉の異常検知！");
-            ChangePhase(GamePhase.Incident);
-        }
-        else if (currentDay == 3)
-        {
-            // 例：3日目は必ず特定のイベントが起きる
-            Debug.Log("【イベント発生】謎の通信を傍受");
             ChangePhase(GamePhase.Incident);
         }
         else
         {
-            // 何もなければ平和な夜へ（スキップ）
-            Debug.Log("今日は特に何も起きなかった...");
+            Debug.Log("今日は特に異常なし。");
             ChangePhase(GamePhase.FreeTime);
         }
     }
 
     // ==========================================
-    // フラグ管理システム
+    // フラグ管理システム（インスペクター対応版）
     // ==========================================
-
-    // フラグを立てる（例: SetFlag("FoundEvidence_A", true)）
-    public void SetFlag(string flagName, bool value)
+    [System.Serializable]
+    public class EventFlag
     {
-        if (gameFlags.ContainsKey(flagName))
+        public string flagName; 
+        public bool isTrue;     
+    }
+
+    [Header("現在のフラグ一覧（実行中のみ確認・編集可）")]
+    public List<EventFlag> activeFlags = new List<EventFlag>();
+
+    public void SetFlag(string targetFlagName, bool value)
+    {
+        EventFlag existingFlag = activeFlags.Find(f => f.flagName == targetFlagName);
+
+        if (existingFlag != null)
         {
-            gameFlags[flagName] = value;
+            existingFlag.isTrue = value; 
         }
         else
         {
-            gameFlags.Add(flagName, value);
+            activeFlags.Add(new EventFlag { flagName = targetFlagName, isTrue = value });
         }
-        Debug.Log($"フラグ更新: {flagName} = {value}");
+        
+        Debug.Log($"フラグ更新: {targetFlagName} = {value}");
+
+        // フラグが更新されたら、通知を出すかチェックする
+        CheckMissionNotification(targetFlagName);
     }
 
-    // フラグの状態を確認する（例: if(GetFlag("KeyFound")) ...）
-    public bool GetFlag(string flagName)
+    public bool GetFlag(string targetFlagName)
     {
-        if (gameFlags.ContainsKey(flagName))
-        {
-            return gameFlags[flagName];
-        }
-        return false; // 存在しないフラグはfalseとして扱う
+        EventFlag existingFlag = activeFlags.Find(f => f.flagName == targetFlagName);
+        if (existingFlag != null) return existingFlag.isTrue;
+        return false; 
     }
 
-    // 次の日へ移行
+    // ==========================================
+    // 通知判定メソッド（ここでフラグとミッションを照らし合わせる）
+    // ==========================================
+    private void CheckMissionNotification(string updatedFlag)
+    {
+        if (UIManager.Instance == null) return;
+
+        foreach (var mission in missionList)
+        {
+            // そのフラグがミッションの「達成条件」だった場合
+            if (mission.targetFlagName == updatedFlag && GetFlag(updatedFlag) == true)
+            {
+                UIManager.Instance.ShowMissionNotification("目的を達成しました\n" + mission.displayText);
+                return;
+            }
+        }
+    }
+
+    // ==========================================
+    // ミッション（目的）管理システム
+    // ==========================================
+    [System.Serializable]
+    public class MissionObjective
+    {
+        public string memo;              
+        public string displayText;       
+
+        [TextArea(3, 5)]
+        public string description;
+        public bool isMainObjective;     
+        
+        [Tooltip("このフラグがTrueになったら『達成済み』になる")]
+        public string targetFlagName;    
+
+        [Tooltip("このミッションがメニューに表示され始めるフェーズ")]
+        public GamePhase appearPhase = GamePhase.Operation; 
+        
+        [Tooltip("表示される日数（0ならいつでも）")]
+        public int appearDay = 0;
+    }
+
+    [Header("現在のミッション一覧")]
+    public List<MissionObjective> missionList = new List<MissionObjective>();
+
+
     public void GoToNextDay()
     {
         currentDay++;
-        // 必要なら日を跨ぐときのリセット処理などをここに書く
         StartDay();
     }
 }

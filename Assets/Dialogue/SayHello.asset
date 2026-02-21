@@ -14,4 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   sentences:
   - speakerName: "\u30AB\u30F3\u30CA"
+    portrait: {fileID: 0}
     text: "\u3053\u3093\u306B\u3061\u308F\uFF01"
+  - speakerName: "\u30AB\u30F3\u30CA"
+    portrait: {fileID: 0}
+    text: "\u5143\u6C17\uFF1F"
+  flagToSetOnComplete: TestTalk
