@@ -10,9 +10,10 @@ public class SteeringConsole : MonoBehaviour, IInteractable
     [Tooltip("画面に表示するソナーパネル全体")]
     public GameObject sonarPanel; 
 
+
     private bool isPlayerPiloting = false;
 
-    // ★追加：ゲーム開始時に必ずソナーを消し、敵の動きも止める
+    // ゲーム開始時に必ずソナーを消し、敵の動きも止める
     void Start()
     {
         if (sonarPanel != null) sonarPanel.SetActive(false);
@@ -42,10 +43,16 @@ public class SteeringConsole : MonoBehaviour, IInteractable
         isPlayerPiloting = true;
         playerInput.enabled = false; 
         submarine.isPiloting = true; 
+
+        if (UIManager.Instance.crosshair != null) 
+        {
+            UIManager.Instance.crosshair.SetActive(false);
+        }
         
         if (sonarPanel != null) sonarPanel.SetActive(true);
+        UIManager.Instance.canOpenMenu = false;
 
-        // ★追加：操縦を始めたら、海中の全生物が動き出す
+        // 操縦を始めたら、海中の全生物が動き出す
         SetAllBioAIActive(true);
     }
 
@@ -54,14 +61,20 @@ public class SteeringConsole : MonoBehaviour, IInteractable
         isPlayerPiloting = false;
         playerInput.enabled = true; 
         submarine.isPiloting = false; 
+
+        if (UIManager.Instance.crosshair != null) 
+        {
+            UIManager.Instance.crosshair.SetActive(true);
+        }
         
         if (sonarPanel != null) sonarPanel.SetActive(false);
+        UIManager.Instance.canOpenMenu = true;
 
-        // ★追加：操縦をやめたら、海中の全生物の時間が止まる
+        // 操縦をやめたら、海中の全生物の時間が止まる
         SetAllBioAIActive(false);
     }
 
-    // ★追加：シーン内のすべてのBioAIを一括でON/OFFする便利メソッド
+    // シーン内のすべてのBioAIを一括でON/OFFする便利メソッド
     private void SetAllBioAIActive(bool isActive)
     {
         BioAI[] allBios = FindObjectsOfType<BioAI>();

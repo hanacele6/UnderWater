@@ -5,7 +5,8 @@ public enum SubmarineTargetType
     Mine,           // 機雷
     HostileBio,     // 敵性生物
     NeutralBio,     // 中立生物
-    Item            // アイテム
+    Item,           // アイテム    
+    Objective
 }
 
 public class SonarTarget : MonoBehaviour
@@ -20,6 +21,13 @@ public class SonarTarget : MonoBehaviour
     [Header("Item Settings (アイテムの場合のみ)")]
     [Tooltip("特定アイテムなら指定。空欄（None）ならランダムドロップになります")]
     public ItemData specificItemData;
+
+    [Header("目的地の表示設定（Objective用）")]
+    [Tooltip("レーダーに表示する識別文字（例：A, B, 1, 2）")]
+    public string targetLabel = ""; 
+    
+    [Tooltip("実際の空間でのエリア半径（メートル）")]
+    public float areaRadius = 10f;
 
     private void OnTriggerEnter(Collider other)
     {

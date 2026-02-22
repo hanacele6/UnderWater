@@ -73,8 +73,11 @@ public class GameManager : MonoBehaviour
         // インスペクターで設定したルールを上から順に確認
         foreach (var rule in transitionRules)
         {
+            bool isMatch = (rule.targetObject == interactedObject) || 
+                           (interactedObject.transform.IsChildOf(rule.targetObject.transform));
+
             // 触ったオブジェクトと、条件のフェーズが一致したらフェーズを変える
-            if (rule.targetObject == interactedObject && currentPhase == rule.requiredPhase)
+            if (isMatch && currentPhase == rule.requiredPhase)
             {
                 Debug.Log($"ルール【{rule.memo}】が発動: {currentPhase} -> {rule.nextPhase}");
                 ChangePhase(rule.nextPhase);

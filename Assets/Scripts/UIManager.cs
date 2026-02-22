@@ -26,6 +26,10 @@ public class UIManager : MonoBehaviour
     [Header("Interact UI")]
     [SerializeField] private GameObject interactPrompt;
 
+    [Tooltip("画面中央のクロスヘアUI")]
+    public GameObject crosshair;
+
+
     private bool isMenuOpen = false;
     private Coroutine hideCoroutine;
 
@@ -34,10 +38,12 @@ public class UIManager : MonoBehaviour
         Instance = this;
     }
 
+    public bool canOpenMenu = true;
+
     private void Update()
     {
         // TABキーでメニュー全体の開閉
-        if (Input.GetKeyDown(KeyCode.Tab))
+        if (canOpenMenu && Input.GetKeyDown(KeyCode.Tab))
         {
             ToggleMenu();
         }

@@ -64,18 +64,45 @@ public class SonarManager : MonoBehaviour
             // ターゲットの種類に応じて光点の色を変える
             // ==========================================
             Image blipImage = newBlip.GetComponent<Image>();
+            TMPro.TextMeshProUGUI blipText = newBlip.GetComponentInChildren<TMPro.TextMeshProUGUI>(); 
+
             if (blipImage != null)
             {
+                // まず最初に、Textオブジェクトを強制的に「非表示（OFF）」にしておく
+                if (blipText != null) blipText.gameObject.SetActive(false);
+
                 switch (target.targetType)
                 {
                     case SubmarineTargetType.Mine:
-                        blipImage.color = Color.red; // 機雷は真っ赤
+                        blipImage.color = Color.red; 
+                        // ※もうTextを空にする処理（blipText.text = "";）は不要なので消してOKです！
                         break;
                     case SubmarineTargetType.HostileBio:
-                        blipImage.color = new Color(1f, 0.4f, 0f); // 敵性生物はオレンジ
+                        blipImage.color = new Color(1f, 0.4f, 0f); 
                         break;
                     case SubmarineTargetType.NeutralBio:
-                        blipImage.color = Color.cyan; // 中立生物は水色
+                        blipImage.color = Color.cyan; 
+                        break;
+                    case SubmarineTargetType.Item:
+                        blipImage.color = Color.yellow; 
+                        break;
+                    
+                    case SubmarineTargetType.Objective:
+                        blipImage.color = new Color(0f, 1f, 0f, 0.4f); 
+
+                        float uiSize = (target.areaRadius / sonarRange) * radarUIRadius * 2f;
+                        uiSize = Mathf.Max(uiSize, 30f); 
+                        
+                        RectTransform blipRt = newBlip.GetComponent<RectTransform>();
+                        blipRt.sizeDelta = new Vector2(uiSize, uiSize); 
+
+                        // Objectiveであり、かつ targetLabel に文字が入力されている時だけONにする！
+                        if (blipText != null && !string.IsNullOrEmpty(target.targetLabel))
+                        {
+                            blipText.gameObject.SetActive(true); // ここでON！
+                            blipText.text = target.targetLabel;
+                            blipText.color = Color.green; 
+                        }
                         break;
                 }
             }
@@ -194,11 +221,20 @@ public class SonarManager : MonoBehaviour
         if (subStatus != null && statusDisplayText != null)
         {
             // プレイヤーのY軸を「方角（0〜360度）」として綺麗に表示する計算
-           float heading = Mathf.Repeat(player.eulerAngles.y, 360f);
+            float heading = Mathf.Repeat(player.eulerAngles.y, 360f);
 
-            // F0は小数点以下切り捨て、F1は小数点第1位まで表示するフォーマットです
+            // ★追加：SubmarineControllerから現在のギア名を取得する
+            string currentGearName = "UNKNOWN";
+            SubmarineController subController = player.GetComponent<SubmarineController>();
+            if (subController != null)
+            {
+                currentGearName = subController.gears[subController.currentGearIndex].gearName;
+            }
+
+            // ★修正：GEAR の表示行を追加！
             statusDisplayText.text = 
                 $"HULL INTEG : {subStatus.currentHP:F0} / {subStatus.maxHP:F0}\n\n" +
+                $"GEAR       : {currentGearName}\n" +
                 $"SPEED      : {subStatus.currentSpeed:F1} KTS\n" +
                 $"TURN RATE  : {subStatus.currentTurnRate:F1} DEG/S\n" +
                 $"HEADING    : {heading:F0}°";
@@ -226,10 +262,10 @@ public class SonarManager : MonoBehaviour
         for (int i = 0; i < targets.Count; i++)
         {
             // ターゲットが破壊（機雷が爆発など）されていたら、光点UIも消して次へ
-            if (targets[i] == null)
+            if (targets[i] == null || !targets[i].enabled || !targets[i].gameObject.activeInHierarchy)
             {
                 if (blips[i] != null && blips[i].activeSelf) blips[i].SetActive(false);
-                continue;
+                continue; // 処理を飛ばして次のターゲットへ
             }
 
             Vector3 relativePos = targets[i].transform.position - player.position;
