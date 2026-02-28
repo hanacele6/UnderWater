@@ -37,6 +37,15 @@ public class SubmarineController : MonoBehaviour
         return gears[currentGearIndex].noiseMultiplier;
     }
 
+    public static SubmarineController Instance { get; private set; }
+
+    private void Awake()
+    {
+        if (Instance == null) Instance = this;
+        else Destroy(gameObject);
+    }
+    
+
     void Update()
     {
         // ★ここが超重要：操縦中（ソナーを開いている時）でなければ、操作を一切受け付けない

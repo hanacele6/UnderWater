@@ -1,12 +1,5 @@
 fileFormatVersion: 2
 guid: fa3a90b7a664e461ba067ed68f581c4f
-timeCreated: 1503028420
-licenseType: Store
-NativeFormatImporter:
-  mainObjectFileID: 100100000
-  userData: 
-  assetBundleName: 
-  assetBundleVariant: 
 AssetOrigin:
   serializedVersion: 1
   productId: 98244
@@ -14,3 +7,8 @@ AssetOrigin:
   packageVersion: 1.1
   assetPath: Assets/SciFiPack1/Prefabs/scifi_floor_4.prefab
   uploadId: 224481
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
