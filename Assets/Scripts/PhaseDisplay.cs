@@ -11,7 +11,7 @@ public class PhaseDisplay : MonoBehaviour
     public string textBriefing = "BRIEFING";
     public string textOperation = "OPERATION";
     public string textEventCheck = "CHECKING";
-    public string textIncident = "WARNING";
+    public string textIncident = "Event";
     public string textFreeTime = "STANDBY";
 
     void Start()

@@ -48,6 +48,11 @@ public class SteeringConsole : MonoBehaviour, IInteractable
         {
             UIManager.Instance.crosshair.SetActive(false);
         }
+
+        if (DialogueManager.Instance != null)
+        {
+            DialogueManager.Instance.ForceEndDialogue();
+        }
         
         if (sonarPanel != null) sonarPanel.SetActive(true);
         UIManager.Instance.canOpenMenu = false;

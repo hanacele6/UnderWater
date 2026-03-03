@@ -27,6 +27,19 @@ public class DoorController : MonoBehaviour, IInteractable
     [Tooltip("開ききってから閉まり始めるまでの待機時間（秒）")]
     public float autoCloseDelay = 3.0f;
 
+    // ==========================================
+    // 3段階のサウンド設定
+    // ==========================================
+    [Header("サウンド設定")]
+    public AudioSource audioSource;
+    [Tooltip("動き始めの音")]
+    public AudioClip startSound;  
+    [Tooltip("動いている最中のループ音")]
+    public AudioClip movingSound; 
+    [Tooltip("止まった時の音")]
+    public AudioClip endSound;    
+    // ==========================================
+
     private bool isOpen = false;
     private bool isMoving = false;
 
@@ -38,6 +51,9 @@ public class DoorController : MonoBehaviour, IInteractable
         // ゲーム開始時の閉まっている位置を記憶
         if (mainDoor != null) mainClosedPos = mainDoor.localPosition;
         if (subDoor != null) subClosedPos = subDoor.localPosition;
+
+        // AudioSourceがセットされていなければ、自分についているものを自動で取得する
+        if (audioSource == null) audioSource = GetComponent<AudioSource>();
     }
 
     // 視線を合わせた時のテキスト表示
@@ -81,7 +97,7 @@ public class DoorController : MonoBehaviour, IInteractable
         switch (doorType)
         {
             case DoorType.Normal:
-                UIManager.Instance.ShowMessage("ドアが開いた。");
+                // UIManager.Instance.ShowMessage("ドアが開いた。");
                 StartCoroutine(OpenDoorsSequence());
                 break;
 
@@ -124,24 +140,40 @@ public class DoorController : MonoBehaviour, IInteractable
         }
     }
 
-    // 手動で閉める用
     private IEnumerator CloseDoors()
     {
         yield return StartCoroutine(MoveDoors(false));
         isOpen = false;
     }
 
-    // ドアを動かす共通処理（isOpeningが true なら開く、false なら閉める）
+    // ドアを動かす共通処理
     private IEnumerator MoveDoors(bool isOpening)
     {
         isMoving = true;
         float timeElapsed = 0;
 
-        // 目標位置の計算（開く時はOffsetを足し、閉める時は元の位置に戻す）
+        // ==========================================
+        // ① 動き始めの音（プシュー）
+        // ==========================================
+        if (audioSource != null && startSound != null)
+        {
+            audioSource.PlayOneShot(startSound);
+        }
+
+        // ==========================================
+        // ② 動いている最中の音（ガァァァ）をループ再生
+        // ==========================================
+        if (audioSource != null && movingSound != null)
+        {
+            audioSource.clip = movingSound;
+            audioSource.loop = true;
+            audioSource.Play();
+        }
+        // ==========================================
+
         Vector3 mainTarget = isOpening ? mainClosedPos + slideOffset : mainClosedPos;
         Vector3 subTarget = isOpening ? subClosedPos - slideOffset : subClosedPos;
 
-        // 現在位置の取得
         Vector3 mainStart = mainDoor != null ? mainDoor.localPosition : Vector3.zero;
         Vector3 subStart = subDoor != null ? subDoor.localPosition : Vector3.zero;
 
@@ -156,13 +188,25 @@ public class DoorController : MonoBehaviour, IInteractable
             yield return null;
         }
 
-        // ズレを補正
         if (mainDoor != null) mainDoor.localPosition = mainTarget;
         if (subDoor != null) subDoor.localPosition = subTarget;
 
-        isMoving = false;
+        // ==========================================
+        // ③ ドアが止まったらループを止め、完了音（ガシャン）を鳴らす
+        // ==========================================
+        if (audioSource != null)
+        {
+            audioSource.Stop();       // ループ音を停止
+            audioSource.loop = false; // ループ設定を元に戻す
 
-        // 動いた直後に、画面のプロンプトテキスト（開ける/閉める）を更新させる
+            if (endSound != null)
+            {
+                audioSource.PlayOneShot(endSound);
+            }
+        }
+        // ==========================================
+
+        isMoving = false;
         UIManager.Instance.ShowInteractPrompt(GetInteractPrompt());
     }
 }

@@ -7,10 +7,13 @@ public class DialogueData : ScriptableObject
     [System.Serializable]
     public struct Sentence
     {
-        public string speakerName; // 話し手の名前
-        public Sprite portrait; //立ち絵
+        public string speakerName;
+        public Sprite portrait;
         [TextArea(3, 10)]
-        public string text;        // セリフ本文
+        public string text;
+        
+        [Header("演出設定")]
+        [Range(0.5f, 2.0f)] public float voicePitch; // 追加：1.0が標準
     }
 
     public List<Sentence> sentences = new List<Sentence>(); // セリフのリスト

@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System.Collections;
 
 public class NPCController : MonoBehaviour, IInteractable
 {
@@ -39,13 +40,36 @@ public class NPCController : MonoBehaviour, IInteractable
     private GamePhase lastTalkedPhase;
     private int lastTalkedDay;
 
+    [Header("回転演出の設定")]
+    [SerializeField] private float rotationSpeed = 5f; // 回転する速さ
+    [SerializeField] private float returnDelay = 20f;   // 会話終了後、何秒で元に戻るか
+
+    private Quaternion originalRotation; // 元々の向きを保存
+    private Coroutine rotationCoroutine;
+    private Transform playerTransform;
+
     public string GetInteractPrompt()
     {
         return "話しかける";
     }
 
+    void Start()
+    {
+        // ゲーム開始時の向きを保存しておく
+        originalRotation = transform.rotation;
+        // プレイヤーのTransformを取得（Playerタグがついている前提）
+        playerTransform = GameObject.FindGameObjectWithTag("Player").transform;
+    }
+
     public void Interact()
     {
+
+        if (DialogueManager.Instance.isTalking)
+        {
+            DialogueManager.Instance.StartDialogue(null); // 前のロジックを流用してDisplayNextを呼ぶ
+            return;
+        }
+
         // GameManagerから現在の状況を取得
         if (GameManager.Instance == null) return;
         GamePhase currentPhase = GameManager.Instance.currentPhase;
@@ -97,8 +121,65 @@ public class NPCController : MonoBehaviour, IInteractable
         // ==========================================
         if (dialogueToPlay != null)
         {
-            DialogueManager.Instance.StartDialogue(dialogueToPlay);
+            DialogueManager.Instance.StartDialogue(dialogueToPlay, this);
             hasTalkedThisPhase = true;
+            StartLookingAtPlayer();
         }
+    }
+
+    private void StartLookingAtPlayer()
+    {
+        if (rotationCoroutine != null) StopCoroutine(rotationCoroutine);
+        rotationCoroutine = StartCoroutine(LookAtTarget(true));
+    }
+
+    // DialogueManagerから「会話が終わった」時に呼んでもらうか、
+    // あるいは一定時間監視して戻す
+    // 会話終了時に DialogueManager から呼ばれる
+    public void StartReturningRotation()
+    {
+        if (rotationCoroutine != null) StopCoroutine(rotationCoroutine);
+        // 第二引数に true を渡して、待機してから戻るようにする
+        rotationCoroutine = StartCoroutine(LookAtTarget(false, true));
+    }
+
+    private IEnumerator LookAtTarget(bool lookAtPlayer, bool waitBeforeReturn = false)
+    {
+        // ① 元に戻る時だけ、指定された秒数（returnDelay）待機する
+        if (waitBeforeReturn)
+        {
+            yield return new WaitForSeconds(returnDelay);
+        }
+
+        float t = 0;
+        // 回転開始時の向きを保存（現在の向きからターゲットへ補間するため）
+        Quaternion startRot = transform.rotation;
+
+        while (t < 1f)
+        {
+            t += Time.deltaTime * rotationSpeed;
+
+            Quaternion targetRot;
+            if (lookAtPlayer && playerTransform != null)
+            {
+                Vector3 direction = playerTransform.position - transform.position;
+                direction.y = 0; 
+                targetRot = Quaternion.LookRotation(direction);
+            }
+            else
+            {
+                targetRot = originalRotation;
+            }
+
+            // Slerpの第3引数に t を直接使うと線形（一定速度）になるので、
+            // より滑らかにするなら t を加工するか、現在の回転から徐々に近づけます
+            transform.rotation = Quaternion.Slerp(startRot, targetRot, t);
+            yield return null;
+        }
+
+        // 最後にピタッと合わせる
+        if (!lookAtPlayer) transform.rotation = originalRotation;
+        
+        rotationCoroutine = null;
     }
 }

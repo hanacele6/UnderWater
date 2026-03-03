@@ -94,6 +94,10 @@ public class UIManager : MonoBehaviour
 
         if (isMenuOpen)
         {
+            if (DialogueManager.Instance != null)
+            {
+                DialogueManager.Instance.ForceEndDialogue();
+            }
             // メニューを開いた時は、必ず「メインページ」からスタートする
             HideMessage();
             OpenMainPage();

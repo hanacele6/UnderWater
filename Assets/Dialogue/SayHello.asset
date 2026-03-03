@@ -16,7 +16,9 @@ MonoBehaviour:
   - speakerName: "\u30AB\u30F3\u30CA"
     portrait: {fileID: 0}
     text: "\u3053\u3093\u306B\u3061\u308F\uFF01"
+    voicePitch: 0
   - speakerName: "\u30AB\u30F3\u30CA"
     portrait: {fileID: 0}
-    text: "\u5143\u6C17\uFF1F"
+    text: "<speed=0.2>\u5143\u6C17\uFF1F"
+    voicePitch: 0
   flagToSetOnComplete: TestArea
