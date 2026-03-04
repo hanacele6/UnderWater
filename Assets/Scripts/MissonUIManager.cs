@@ -58,7 +58,7 @@ public class MissionMenuUI : MonoBehaviour
 
         // 2. 表示条件を満たすミッションだけを LINQ で抽出
         List<GameManager.MissionObjective> displayMissions = GameManager.Instance.missionList
-            .Where(m => (m.appearDay == 0 || m.appearDay == currentDay) && currentPhase >= m.appearPhase)
+            .Where(m => (m.appearDay == 0 || m.appearDay == currentDay) && currentPhase >= m.appearPhase &&(string.IsNullOrEmpty(m.requiredFlagToAppear) || GameManager.Instance.GetFlag(m.requiredFlagToAppear)))
             .ToList();
 
         // 3. ボタンを生成して、それぞれの箱に振り分ける

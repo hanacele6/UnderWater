@@ -1,7 +1,5 @@
-//
-//  Outline.cs
-//  QuickOutline (Modified for Interactable Integration)
-//
+//  Outline.cs
+//  QuickOutline (Modified for Interactable Integration)
 
 using System;
 using System.Collections.Generic;
@@ -9,7 +7,6 @@ using System.Linq;
 using UnityEngine;
 
 [DisallowMultipleComponent]
-
 public class InteractableHighlight : MonoBehaviour {
   private static HashSet<Mesh> registeredMeshes = new HashSet<Mesh>();
 
@@ -22,11 +19,29 @@ public class InteractableHighlight : MonoBehaviour {
   }
 
   // ==========================================
-  // ★追加：インタラクト用の統合変数
+  // ★追加：ハイライトの状態を定義
+  // ==========================================
+  public enum HighlightState {
+    None,       // 光っていない
+    Proximity,  // 近づいた（接近）
+    Gaze        // 視線が合った（注視）
+  }
+
+  // ==========================================
+  // インタラクト用の統合変数
   // ==========================================
   [Header("Highlight Settings")]
   [Tooltip("このオブジェクトが現在光ることを許可されているか")]
   public bool isHighlightable = true; 
+
+  [Tooltip("プレイヤーが近づいた時のフチ取り色")]
+  public Color proximityColor = new Color(1f, 1f, 1f, 0.5f); // デフォルトは半透明の白
+  
+  [Tooltip("プレイヤーの視線が合った時のフチ取り色")]
+  public Color gazeColor = Color.yellow; // デフォルトは黄色
+
+  // 現在の状態を保持
+  private HighlightState currentState = HighlightState.None;
 
   public Mode OutlineMode {
     get { return outlineMode; }
@@ -60,7 +75,7 @@ public class InteractableHighlight : MonoBehaviour {
   [SerializeField]
   private Mode outlineMode;
 
-  [SerializeField]
+  [SerializeField, HideInInspector]
   private Color outlineColor = Color.white;
 
   [SerializeField, Range(0f, 10f)]
@@ -98,21 +113,39 @@ public class InteractableHighlight : MonoBehaviour {
   }
 
   // ==========================================
-  // ★追加：ゲーム開始時に自動でOFFにする
-  // これで、Unityエディタ上でいちいちチェックを外す手間が省けます！
+  // ゲーム開始時に自動でOFFにする
   // ==========================================
   void Start() {
       this.enabled = false;
   }
 
   // ==========================================
-  // ★追加：PlayerInteract から呼ばれるメソッド
+  // ★変更：PlayerInteract等から呼ばれる状態変更メソッド
   // ==========================================
-  public void ToggleHighlight(bool isOn) {
-      if (isOn && isHighlightable) {
-          this.enabled = true;  // ONにすると、自動でOnEnable()が呼ばれてフチ取りが出る
-      } else {
-          this.enabled = false; // OFFにすると、自動でOnDisable()が消してくれる
+  public void ChangeHighlightState(HighlightState newState) {
+      if (!isHighlightable) {
+          this.enabled = false;
+          currentState = HighlightState.None;
+          return;
+      }
+
+      // 状態が変わっていないなら何もしない（無駄な処理を省く）
+      if (currentState == newState) return;
+
+      currentState = newState;
+
+      switch (currentState) {
+          case HighlightState.None:
+              this.enabled = false; // コンポーネントをOFFにしてフチ取りを消す
+              break;
+          case HighlightState.Proximity:
+              OutlineColor = proximityColor; // 接近用の色に変更
+              this.enabled = true;           // コンポーネントをONにしてフチ取りを出す
+              break;
+          case HighlightState.Gaze:
+              OutlineColor = gazeColor;      // 視線用の色に変更
+              this.enabled = true;           // コンポーネントをONにしてフチ取りを出す
+              break;
       }
   }
 
@@ -121,7 +154,7 @@ public class InteractableHighlight : MonoBehaviour {
       var materials = renderer.sharedMaterials.ToList();
       materials.Add(outlineMaskMaterial);
       materials.Add(outlineFillMaterial);
-      renderer.materials = materials.ToArray();
+      renderer.sharedMaterials = materials.ToArray();
     }
   }
 
@@ -148,7 +181,7 @@ public class InteractableHighlight : MonoBehaviour {
       var materials = renderer.sharedMaterials.ToList();
       materials.Remove(outlineMaskMaterial);
       materials.Remove(outlineFillMaterial);
-      renderer.materials = materials.ToArray();
+      renderer.sharedMaterials = materials.ToArray();
     }
   }
 
@@ -233,4 +266,51 @@ public class InteractableHighlight : MonoBehaviour {
         break;
     }
   }
+
+  // ==========================================
+  // ★追加：状態を管理するフラグ
+  // ==========================================
+  private bool isGazed = false;
+  private bool isProximate = false;
+
+  // PlayerInteractから呼ばれる（視線のON/OFF）
+  public void SetGaze(bool isLooking) {
+      isGazed = isLooking;
+      EvaluateHighlight();
+  }
+
+  // プレイヤーが近づいた時（接近のON）
+  private void OnTriggerEnter(Collider other) {
+      // プレイヤーが近づいたかタグで判定（Player側のタグを"Player"に設定しておくこと）
+      if (other.CompareTag("Player")) {
+          isProximate = true;
+          EvaluateHighlight();
+      }
+  }
+
+  // プレイヤーが離れた時（接近のOFF）
+  private void OnTriggerExit(Collider other) {
+      if (other.CompareTag("Player")) {
+          isProximate = false;
+          EvaluateHighlight();
+      }
+  }
+
+  // フラグの優先順位を計算して色を決定する
+  private void EvaluateHighlight() {
+      if (!isHighlightable) {
+          ChangeHighlightState(HighlightState.None);
+          return;
+      }
+
+      // 優先順位: 視線(Gaze) > 接近(Proximity) > 何もなし(None)
+      if (isGazed) {
+          ChangeHighlightState(HighlightState.Gaze);
+      } else if (isProximate) {
+          ChangeHighlightState(HighlightState.Proximity);
+      } else {
+          ChangeHighlightState(HighlightState.None);
+      }
+  }
+
 }

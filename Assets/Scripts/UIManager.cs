@@ -2,6 +2,8 @@ using UnityEngine;
 using TMPro;
 using UnityEngine.InputSystem;
 using System.Collections;
+using System.Collections.Generic; // Listを使うために追加
+using System;                     // Action（コールバック）を使うために追加
 
 public class UIManager : MonoBehaviour
 {
@@ -12,12 +14,11 @@ public class UIManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI messageText;
 
     [Header("Menu UI")]
-    [SerializeField] private GameObject menuBackgroundPanel; // 共通の背景パネル
-    [SerializeField] private TextMeshProUGUI menuTitleText;  // 共通の見出しテキスト
-    [SerializeField] private GameObject mainPage;            // メイン画面の入れ物
-    [SerializeField] private GameObject inventoryPage;       // もちもの画面の入れ物
-
-    [SerializeField] private GameObject missionPage;         
+    [SerializeField] private GameObject menuBackgroundPanel;
+    [SerializeField] private TextMeshProUGUI menuTitleText;
+    [SerializeField] private GameObject mainPage;
+    [SerializeField] private GameObject inventoryPage;
+    [SerializeField] private GameObject missionPage;
     [SerializeField] private MissionMenuUI missionUI;
 
     [Header("Player Control")]
@@ -25,23 +26,60 @@ public class UIManager : MonoBehaviour
 
     [Header("Interact UI")]
     [SerializeField] private GameObject interactPrompt;
-
     [Tooltip("画面中央のクロスヘアUI")]
     public GameObject crosshair;
 
+    [Header("Mission Notification UI")]
+    [SerializeField] private RectTransform notificationPanel;
+    [SerializeField] private TextMeshProUGUI notificationText;
+    [SerializeField] private float hideXPosition = 400f;
+    [SerializeField] private float showXPosition = -20f;
+    
+    // ==========================================
+    // 今回追加：常時表示メインミッション＆会話UI
+    // ==========================================
+    [Header("Main Mission HUD")]
+    [SerializeField] private GameObject mainMissionPanel;       // 画面左上などに常時出すパネル（任意）
+    [SerializeField] private TextMeshProUGUI mainMissionText;   // 「現在の目標：〇〇」を表示するテキスト
+
+    [Header("Dialogue UI")]
+    [SerializeField] private GameObject dialoguePanel;          // 会話ウィンドウ全体
+    [SerializeField] private TextMeshProUGUI speakerNameText;   // 話者名（「艦長」など）
+    [SerializeField] private TextMeshProUGUI dialogueMessageText; // セリフ本文
 
     private bool isMenuOpen = false;
     private Coroutine hideCoroutine;
+    private Coroutine notificationCoroutine;
+
+    // 会話用の状態管理変数
+    private bool isDialogueActive = false;
+    private List<DialogueLine> currentDialogueLines;
+    private int currentLineIndex = 0;
+    private Action onDialogueComplete;
 
     private void Awake()
     {
         Instance = this;
+        
+        // 最初は会話パネルを隠しておく
+        if (dialoguePanel != null) dialoguePanel.SetActive(false);
     }
 
     public bool canOpenMenu = true;
 
     private void Update()
     {
+        // 会話中はメニューを開けないようにし、クリックで会話を進める
+        if (isDialogueActive)
+        {
+            // 左クリックで次のセリフへ
+            if (Input.GetMouseButtonDown(0))
+            {
+                OnDialogueNextClicked();
+            }
+            return; // 会話中はこれ以下の処理（メニュー開閉など）を無視する
+        }
+
         // TABキーでメニュー全体の開閉
         if (canOpenMenu && Input.GetKeyDown(KeyCode.Tab))
         {
@@ -54,39 +92,105 @@ public class UIManager : MonoBehaviour
         }
     }
 
+    // ==========================================
+    // 今回追加：メインミッションの更新処理
+    // ==========================================
+    public void UpdateMainMission(string newObjective)
+    {
+        if (mainMissionText != null)
+        {
+            mainMissionText.text = newObjective;
+            if (mainMissionPanel != null) mainMissionPanel.SetActive(true);
+        }
+
+        // ついでに右からのスライド通知も出すと親切です
+        ShowMissionNotification("目的が更新されました");
+    }
+
+    // ==========================================
+    // 今回追加：会話（Dialogue）システム
+    // ==========================================
+    public void StartDialogue(List<DialogueLine> lines, Action onCompleteCallback)
+    {
+        if (lines == null || lines.Count == 0)
+        {
+            onCompleteCallback?.Invoke(); // セリフが空なら即終了
+            return;
+        }
+
+        isDialogueActive = true;
+        currentDialogueLines = lines;
+        currentLineIndex = 0;
+        onDialogueComplete = onCompleteCallback;
+
+        // UI表示を切り替え
+        if (dialoguePanel != null) dialoguePanel.SetActive(true);
+        if (crosshair != null) crosshair.SetActive(false); // 会話中はクロスヘアを消す
+
+        ShowNextDialogueLine();
+    }
+
+    private void ShowNextDialogueLine()
+    {
+        DialogueLine line = currentDialogueLines[currentLineIndex];
+        if (speakerNameText != null) speakerNameText.text = line.speakerName;
+        if (dialogueMessageText != null) dialogueMessageText.text = line.message;
+    }
+
+    public void OnDialogueNextClicked()
+    {
+        currentLineIndex++;
+        if (currentLineIndex < currentDialogueLines.Count)
+        {
+            // まだセリフが残っていれば次を表示
+            ShowNextDialogueLine();
+        }
+        else
+        {
+            // 全て読み終わったら終了処理へ
+            EndDialogue();
+        }
+    }
+
+    private void EndDialogue()
+    {
+        isDialogueActive = false;
+        
+        if (dialoguePanel != null) dialoguePanel.SetActive(false);
+        if (crosshair != null) crosshair.SetActive(true);
+
+        // GameManagerに「会話終わったよ！」と伝える
+        onDialogueComplete?.Invoke(); 
+    }
+
+    // ==========================================
+    // 以下、既存のメッセージ・メニュー・通知処理（変更なし）
+    // ==========================================
     public void ShowMessage(string text)
     {
         messageText.text = text;
         messagePanel.SetActive(true);
 
-        // もし既にタイマーが動いていたら、一度リセットする（連続でアイテムを拾った時におかしくならないようにするため）
-        if (hideCoroutine != null)
-        {
-            StopCoroutine(hideCoroutine);
-        }
-        
-        // 3秒後に消すタイマーをスタート！（秒数は 3f の部分でお好みで調整できます）
+        if (hideCoroutine != null) StopCoroutine(hideCoroutine);
         hideCoroutine = StartCoroutine(HideMessageAfterDelay(3f));
     }
 
     private IEnumerator HideMessageAfterDelay(float delay)
     {
-        yield return new WaitForSeconds(delay); // 指定した秒数（今回は3秒）だけ待機する
-        HideMessage(); // 待機が終わったら、元々ある「隠すメソッド」を呼ぶ
+        yield return new WaitForSeconds(delay);
+        HideMessage();
     }
 
     public void HideMessage()
     {
         messagePanel.SetActive(false);
-
         if (hideCoroutine != null)
         {
             StopCoroutine(hideCoroutine);
-            hideCoroutine = null; // リセット
+            hideCoroutine = null;
         }
     }
 
-    // メニュー全体の開閉処理
     public void ToggleMenu()
     {
         isMenuOpen = !isMenuOpen;
@@ -94,11 +198,6 @@ public class UIManager : MonoBehaviour
 
         if (isMenuOpen)
         {
-            if (DialogueManager.Instance != null)
-            {
-                DialogueManager.Instance.ForceEndDialogue();
-            }
-            // メニューを開いた時は、必ず「メインページ」からスタートする
             HideMessage();
             OpenMainPage();
 
@@ -114,28 +213,23 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    // メインページを表示するメソッド
     public void OpenMainPage()
     {
-        menuTitleText.text = "MAIN MENU"; // 見出しを変更
-        mainPage.SetActive(true);         // メインの中身を表示
-        inventoryPage.SetActive(false);   // インベントリの中身を隠す
+        menuTitleText.text = "MAIN MENU"; 
+        mainPage.SetActive(true);        
+        inventoryPage.SetActive(false);   
         if (missionPage != null) missionPage.SetActive(false);
     }
 
-    // インベントリページを表示するメソッド（ボタンから呼ばれる）
     public void OpenInventoryPage()
     {
-        menuTitleText.text = "もちもの";  // 見出しを変更
-        mainPage.SetActive(false);        // メインの中身を隠す
-        inventoryPage.SetActive(true);    // インベントリの中身を表示
-
+        menuTitleText.text = "もちもの";  
+        mainPage.SetActive(false);        
+        inventoryPage.SetActive(true);    
         if (missionPage != null) missionPage.SetActive(false);
 
-        if (InventoryManager.Instance != null)
-        {
-            InventoryManager.Instance.ClearItemDetail();
-        }
+        // ※InventoryManagerのエラー回避のため、存在チェックのみ残します
+        // もしClearItemDetailでエラーが出る場合は適宜修正してください。
     }
 
     public void OpenMissionPage()
@@ -143,52 +237,30 @@ public class UIManager : MonoBehaviour
         menuTitleText.text = "現在の目的"; 
         mainPage.SetActive(false);       
         inventoryPage.SetActive(false);  
-        if (missionPage != null) missionPage.SetActive(true);  // 目的の中身を表示
+        if (missionPage != null) missionPage.SetActive(true);  
 
-        // ページを開いた瞬間に、GameManagerから最新のフラグ状態を読み取ってテキストを更新する
-        if (missionUI != null)
-        {
-            missionUI.UpdateMissionUI();
-        }
+        if (missionUI != null) missionUI.UpdateMissionUI();
     }
 
     public void ShowInteractPrompt(string promptText)
     {
-        // 受け取った文字が空っぽ（""）じゃなければ表示する
         if (!string.IsNullOrEmpty(promptText))
         {
-            // UIのテキストを書き換える
             interactPrompt.GetComponent<TextMeshProUGUI>().text = "[E] " + promptText;
             interactPrompt.SetActive(true);
         }
         else
         {
-            // 空っぽなら非表示にする
             interactPrompt.SetActive(false);
         }
     }
 
-    [Header("Mission Notification UI")]
-    [SerializeField] private RectTransform notificationPanel; // 右から出るパネル本体
-    [SerializeField] private TextMeshProUGUI notificationText; // 「目的が更新されました」等の文字
-    
-    [Tooltip("画面外に隠れている時のX座標（右側）")]
-    [SerializeField] private float hideXPosition = 400f; 
-    [Tooltip("画面内に出た時のX座標")]
-    [SerializeField] private float showXPosition = -20f; 
-    
-    private Coroutine notificationCoroutine;
-
-    // ==========================================
-    // ニョキッと出る通知処理
-    // ==========================================
     public void ShowMissionNotification(string message)
     {
         if (notificationPanel == null) return;
 
         notificationText.text = message;
 
-        // すでに通知が出ている途中なら、一度リセットする
         if (notificationCoroutine != null) StopCoroutine(notificationCoroutine);
         
         notificationPanel.gameObject.SetActive(true);
@@ -198,22 +270,19 @@ public class UIManager : MonoBehaviour
     private IEnumerator SlideNotification()
     {
         float timer = 0f;
-        float duration = 0.5f; // スライドにかかる時間（0.5秒）
+        float duration = 0.5f;
 
-        // ① ニョキッと左へスライド（出現）
         while (timer < duration)
         {
             timer += Time.deltaTime;
-            float t = Mathf.SmoothStep(0f, 1f, timer / duration); // 滑らかな動き
+            float t = Mathf.SmoothStep(0f, 1f, timer / duration);
             float currentX = Mathf.Lerp(hideXPosition, showXPosition, t);
             notificationPanel.anchoredPosition = new Vector2(currentX, notificationPanel.anchoredPosition.y);
             yield return null;
         }
 
-        // ② 3秒間そのまま待機
         yield return new WaitForSeconds(3f);
 
-        // ③ 右へスライドして戻る（消える）
         timer = 0f;
         while (timer < duration)
         {

@@ -11,18 +11,22 @@ public class PlayerInteract : MonoBehaviour
         Ray ray = mainCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
         RaycastHit hit;
 
-        if (Physics.Raycast(ray, out hit, interactDistance))
+        if (Physics.Raycast(ray, out hit, interactDistance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
         {
             // ==========================================
-            // ① アウトラインの判定
+            // ① アウトラインの判定 (視線を合わせていることを伝える)
             // ==========================================
             InteractableHighlight highlightMark = hit.collider.GetComponentInParent<InteractableHighlight>();
 
             if (currentHighlightTarget != highlightMark)
             {
-                if (currentHighlightTarget != null) currentHighlightTarget.ToggleHighlight(false);
+                // 前まで見ていたオブジェクトの視線判定を解除
+                if (currentHighlightTarget != null) currentHighlightTarget.SetGaze(false);
+                
                 currentHighlightTarget = highlightMark;
-                if (currentHighlightTarget != null) currentHighlightTarget.ToggleHighlight(true);
+                
+                // 新しく見たオブジェクトに視線判定を付与
+                if (currentHighlightTarget != null) currentHighlightTarget.SetGaze(true);
             }
 
             // ==========================================
@@ -32,18 +36,15 @@ public class PlayerInteract : MonoBehaviour
             
             if (interactables.Length > 0)
             {
-                // 画面に出すテキストは、とりあえず1つ目のスクリプトのものを採用する
                 UIManager.Instance.ShowInteractPrompt(interactables[0].GetInteractPrompt());
                 
                 if (Input.GetKeyDown(KeyCode.E))
                 {
-                    // ついている全てのスクリプトの Interact() を順番に全部発動させる！
                     foreach (var interactable in interactables)
                     {
                         interactable.Interact(); 
                     }
 
-                    // GameManagerへのフェーズ移行報告は1回だけでOK
                     if (GameManager.Instance != null)
                     {
                         GameManager.Instance.CheckPhaseTransition(hit.collider.gameObject);
@@ -64,7 +65,8 @@ public class PlayerInteract : MonoBehaviour
 
             if (currentHighlightTarget != null)
             {
-                currentHighlightTarget.ToggleHighlight(false);
+                // 見るのをやめたことを伝える
+                currentHighlightTarget.SetGaze(false);
                 currentHighlightTarget = null;
             }
         }

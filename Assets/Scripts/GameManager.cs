@@ -41,6 +41,12 @@ public class GameManager : MonoBehaviour
     [Tooltip("どのオブジェクトを触ったら、どのフェーズに進むかを設定します")]
     public List<PhaseTransitionRule> transitionRules = new List<PhaseTransitionRule>();
 
+    [Header("イベント台本（Projectから登録）")]
+    [Tooltip("発生しうるすべてのイベントデータをここに登録します")]
+    public List<GameEventData> allGameEvents = new List<GameEventData>();
+
+    private GameEventData currentPlayingEvent = null; // 現在実行中のイベント
+
     void Awake()
     {
         if (Instance == null) Instance = this;
@@ -116,16 +122,145 @@ public class GameManager : MonoBehaviour
         OnPhaseChanged?.Invoke(currentPhase);
     }
 
+    // ==========================================
+    // 進行管理システム本体（NextPhaseを改修）
+    // ==========================================
     public void NextPhase()
     {
-        switch (currentPhase)
+        // 次の日常フェーズに進む前に、割り込むべきイベント（台本）がないかチェックする
+        GameEventData pendingEvent = CheckForPendingEvents(currentPhase);
+
+        if (pendingEvent != null)
         {
-            case GamePhase.Briefing: ChangePhase(GamePhase.Operation); break;
-            case GamePhase.Operation: ChangePhase(GamePhase.EventCheck); break;
-            case GamePhase.Incident: ChangePhase(GamePhase.FreeTime); break;
-            case GamePhase.FreeTime: GoToNextDay(); break;
+            // 割り込みイベント発生！
+            StartEvent(pendingEvent);
+        }
+        else
+        {
+            // イベントがなければ通常の1日の流れを進める
+            switch (currentPhase)
+            {
+                case GamePhase.Briefing: ChangePhase(GamePhase.Operation); break;
+                case GamePhase.Operation: ChangePhase(GamePhase.FreeTime); break; // EventCheckを廃止し直接遷移
+                case GamePhase.FreeTime: GoToNextDay(); break;
+                
+                // イベント終了時などはここ呼ばれる想定
+                case GamePhase.Incident: ChangePhase(GamePhase.FreeTime); break; 
+            }
         }
     }
+
+    // ==========================================
+    // 台本（イベント）判定・実行システム
+    // ==========================================
+    private GameEventData CheckForPendingEvents(GamePhase timing)
+    {
+        foreach (var eventData in allGameEvents)
+        {
+            // 条件1: フェーズのタイミングが一致しているか
+            if (eventData.triggerTiming != timing) continue;
+
+            // 条件2: 日数指定がある場合、一致しているか
+            if (eventData.requiredDay != 0 && eventData.requiredDay != currentDay) continue;
+
+            // 条件3: フラグ条件を満たしているか
+            if (!string.IsNullOrEmpty(eventData.requiredFlagName))
+            {
+                if (GetFlag(eventData.requiredFlagName) != eventData.requiredFlagValue) continue;
+            }
+
+            return eventData; // 全条件クリア！このイベントを再生する
+        }
+        return null; // 発生するイベントなし
+    }
+
+    // GameManager.cs 内
+    private void StartEvent(GameEventData eventData)
+    {
+        Debug.Log($"【イベント発動】: {eventData.eventMemo}");
+        currentPlayingEvent = eventData;
+
+        // 証拠品の出現フラグ
+        if (!string.IsNullOrEmpty(eventData.startEventFlag))
+        {
+            SetFlag(eventData.startEventFlag, true);
+        }
+
+        // ==========================================
+        // イベントタイプごとの処理分岐
+        // ==========================================
+        if (eventData.type == EventType.ConversationOnly)
+        {
+            LockPlayer(); 
+            // 会話が終わったら「イベント全体を完了（CompleteCurrentEvent）」させる
+            if (UIManager.Instance != null)
+            {
+                UIManager.Instance.StartDialogue(eventData.dialogueLines, CompleteCurrentEvent);
+            }
+        }
+        else if (eventData.type == EventType.PlayableIncident)
+        {
+            ChangePhase(GamePhase.Incident);
+
+            // ★追加：PlayableIncidentでも、セリフが設定されていれば会話からスタートする
+            if (eventData.dialogueLines != null && eventData.dialogueLines.Count > 0)
+            {
+                LockPlayer();
+                // ※重要※ ここは会話が終わってもイベント完了させず、「プレイヤーのロックを解除」するだけ！
+                if (UIManager.Instance != null)
+                {
+                    UIManager.Instance.StartDialogue(eventData.dialogueLines, UnlockPlayer);
+                }
+            }
+            // セリフが1行もなければ、ロックせずにそのまま探索開始
+        }
+    }
+    // イベント（会話や探索）が終わった時に外部から呼ばれるメソッド
+    public void CompleteCurrentEvent()
+    {
+        if (currentPlayingEvent == null) return;
+
+        Debug.Log($"【イベント完了】: {currentPlayingEvent.eventMemo}");
+
+        // イベントクリア報酬のフラグを立てる
+        if (!string.IsNullOrEmpty(currentPlayingEvent.setFlagOnComplete))
+        {
+            SetFlag(currentPlayingEvent.setFlagOnComplete, true);
+        }
+
+        GamePhase next = currentPlayingEvent.nextPhaseAfterEvent;
+        currentPlayingEvent = null; // リセット
+
+        // 台本で指定された次のフェーズへ移行
+        ChangePhase(next);
+    }
+
+    [Header("プレイヤー制御")]
+    public MonoBehaviour playerMovementScript; // プレイヤーの移動スクリプト
+    public MonoBehaviour playerCameraScript;   // 視点移動（MouseLookなど）のスクリプト
+
+    // イベント開始時に呼ぶ
+    public void LockPlayer()
+    {
+        if (playerMovementScript != null) playerMovementScript.enabled = false;
+        if (playerCameraScript != null) playerCameraScript.enabled = false;
+
+        // UI操作のためにカーソルを表示・ロック解除
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+    }
+
+    // イベント終了時に呼ぶ
+    public void UnlockPlayer()
+    {
+        if (playerMovementScript != null) playerMovementScript.enabled = true;
+        if (playerCameraScript != null) playerCameraScript.enabled = true;
+
+        // 再びゲーム用にカーソルを隠す・ロック
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+    }
+
 
     // ==========================================
     // イベント自動判定システム
@@ -222,6 +357,9 @@ public class GameManager : MonoBehaviour
         
         [Tooltip("表示される日数（0ならいつでも）")]
         public int appearDay = 0;
+
+        [Tooltip("このフラグがONの時だけメニューに表示する（空欄なら条件なしで表示）")]
+        public string requiredFlagToAppear;
     }
 
     [Header("現在のミッション一覧")]
