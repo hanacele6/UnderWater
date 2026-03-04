@@ -177,48 +177,52 @@ public class GameManager : MonoBehaviour
     // GameManager.cs 内
     private void StartEvent(GameEventData eventData)
     {
-        Debug.Log($"【イベント発動】: {eventData.eventMemo}");
         currentPlayingEvent = eventData;
+        LockPlayer(); // 移動と視点操作をロック
 
-        // 証拠品の出現フラグ
-        if (!string.IsNullOrEmpty(eventData.startEventFlag))
+        // 舞台装置（視点固定やNPC配置）のセットアップ
+        if (!string.IsNullOrEmpty(eventData.targetStageID))
         {
-            SetFlag(eventData.startEventFlag, true);
-        }
-
-        // ==========================================
-        // イベントタイプごとの処理分岐
-        // ==========================================
-        if (eventData.type == EventType.ConversationOnly)
-        {
-            LockPlayer(); 
-            // 会話が終わったら「イベント全体を完了（CompleteCurrentEvent）」させる
-            if (UIManager.Instance != null)
+            // シーン内からIDが一致する舞台を探して準備する
+            EventStage[] stages = FindObjectsOfType<EventStage>();
+            foreach (var stage in stages)
             {
-                UIManager.Instance.StartDialogue(eventData.dialogueLines, CompleteCurrentEvent);
-            }
-        }
-        else if (eventData.type == EventType.PlayableIncident)
-        {
-            ChangePhase(GamePhase.Incident);
-
-            // ★追加：PlayableIncidentでも、セリフが設定されていれば会話からスタートする
-            if (eventData.dialogueLines != null && eventData.dialogueLines.Count > 0)
-            {
-                LockPlayer();
-                // ※重要※ ここは会話が終わってもイベント完了させず、「プレイヤーのロックを解除」するだけ！
-                if (UIManager.Instance != null)
+                if (stage.stageID == eventData.targetStageID)
                 {
-                    UIManager.Instance.StartDialogue(eventData.dialogueLines, UnlockPlayer);
+                    currentStage = stage;
+                    currentStage.SetupStage();
+                    break;
                 }
             }
-            // セリフが1行もなければ、ロックせずにそのまま探索開始
+        }
+
+        // あなたのDialogueManagerに会話データを渡す
+        if (eventData.type == EventType.ConversationOnly || 
+           (eventData.sentences != null && eventData.sentences.Count > 0))
+        {
+            // ※注意: DialogueManagerを少し改修し、終わった時に CompleteCurrentEvent を呼べるようにする必要があります（後述）
+            
+            DialogueData tempDialogue = ScriptableObject.CreateInstance<DialogueData>();
+            tempDialogue.sentences = eventData.sentences;
+            
+            DialogueManager.Instance.StartDialogue(tempDialogue, CompleteCurrentEvent);
         }
     }
+
+    private EventStage currentStage; // 現在使っている舞台
     // イベント（会話や探索）が終わった時に外部から呼ばれるメソッド
     public void CompleteCurrentEvent()
     {
         if (currentPlayingEvent == null) return;
+
+        // 舞台の片付け（NPCを消すなど）
+        if (currentStage != null)
+        {
+            currentStage.CleanupStage();
+            currentStage = null;
+        }
+
+        UnlockPlayer();
 
         Debug.Log($"【イベント完了】: {currentPlayingEvent.eventMemo}");
 

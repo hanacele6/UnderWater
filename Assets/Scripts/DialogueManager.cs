@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using TMPro; 
 using UnityEngine.UI;
+using System;
 
 public class DialogueManager : MonoBehaviour
 {
@@ -32,6 +33,7 @@ public class DialogueManager : MonoBehaviour
 
     private NPCController currentInteractedNPC;
 
+    private Action onCompleteCallback;
     void Awake()
     {
         Instance = this;
@@ -56,8 +58,9 @@ public class DialogueManager : MonoBehaviour
     }
 
     // 会話を開始する（外部から呼ばれる）
-    public void StartDialogue(DialogueData dialogue, NPCController npc = null)
+    public void StartDialogue(DialogueData dialogue, Action onComplete = null, NPCController npc = null)
     {
+        onCompleteCallback = onComplete;
         if (isTalking)
         {
             DisplayNextSentence();
@@ -151,6 +154,8 @@ public class DialogueManager : MonoBehaviour
                 GameManager.Instance.SetFlag(currentDialogue.flagToSetOnComplete, true);
             }
         }
+        onCompleteCallback?.Invoke();
+        onCompleteCallback = null;
     }
 
     void Update()

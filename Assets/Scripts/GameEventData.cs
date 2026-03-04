@@ -54,7 +54,11 @@ public class GameEventData : ScriptableObject
 
     [Header("会話データ (ConversationOnly用)")]
     [Tooltip("上から順番にテキストが表示されます。PlayableIncidentの場合は空でOKです。")]
-    public List<DialogueLine> dialogueLines = new List<DialogueLine>();
+    public List<DialogueData.Sentence> sentences = new List<DialogueData.Sentence>();
+
+    [Header("舞台装置の指定")]
+    [Tooltip("シーン内のEventStageのStageIDを入力（空欄なら移動・視点固定しない）")]
+    public string targetStageID;
 
     [Header("終了後の動作")]
     [Tooltip("このイベント（会話終了 or 証拠品発見）が終わった後、どのフェーズに移行するか")]
