@@ -18,11 +18,12 @@ MonoBehaviour:
   requiredFlagValue: 0
   type: 0
   eventMemo: "\u6700\u521D\u306E\u30A4\u30F3\u30C8\u30ED\u3067\u3059"
-  startEventFlag: TestQuest
-  dialogueLines:
-  - speakerName: test
-    message: "\u3053\u308C\u306F\u30C6\u30B9\u30C8\u3067\u3059"
-  - speakerName: test2
-    message: "\u306A\u3093\u3068\u3001\u3053\u308C\u306F\u30C6\u30B9\u30C82\u3067\u3059\u3002"
+  startEventFlag: 
+  sentences:
+  - speakerName: "\u30AB\u30F3\u30CA"
+    portrait: {fileID: 0}
+    text: "\u3053\u308C\u306F\u30C6\u30B9\u30C8\u3060\u3088"
+    voicePitch: 0
+  targetStageID: Control Room
   nextPhaseAfterEvent: 0
-  setFlagOnComplete: 
+  setFlagOnComplete: TestQuest

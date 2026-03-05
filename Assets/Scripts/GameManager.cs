@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.Events;
 using System.Collections.Generic;
+using System.Collections;
 
 // 1日のフェーズ（状態）を定義
 public enum GamePhase
@@ -97,8 +98,34 @@ public class GameManager : MonoBehaviour
     // ==========================================
     public void StartDay()
     {
+        StartCoroutine(StartDayRoutine()); // コルーチンとして呼び出すように変更
+    }
+
+    private IEnumerator StartDayRoutine()
+    {
         Debug.Log($"=== Day {currentDay} Start ===");
-        ChangePhase(GamePhase.Briefing);
+
+        // 1. まずフェーズをその日の始まり（Briefing）にセットする
+        currentPhase = GamePhase.Briefing;
+        lastPhase = currentPhase;
+        OnPhaseChanged?.Invoke(currentPhase);
+
+        // 2. 朝イチ（Briefing開始直後）に発生すべき台本がないかチェックする
+        GameEventData morningEvent = CheckForPendingEvents(GamePhase.Briefing);
+
+        if (morningEvent != null)
+        {
+            // 朝イチのイベントがあれば、プレイヤーが動く前にいきなり開始！
+            Debug.Log("朝イチのイベントを発見。直ちに開始します。");
+            StartEvent(morningEvent);
+        }
+        else
+        {
+            // なければ通常通り、プレイヤーが自由に動ける朝としてスタート
+            // ★追加：イベントがない平和な朝なら、ただ画面を明るくしてゲーム開始
+            if (UIManager.Instance != null) yield return StartCoroutine(UIManager.Instance.FadeIn(1.0f));
+            Debug.Log("今日の朝は特にイベントなし。自由行動開始。");
+        }
     }
 
     public void ChangePhase(GamePhase newPhase)
@@ -175,15 +202,33 @@ public class GameManager : MonoBehaviour
     }
 
     // GameManager.cs 内
+    // ==========================================
+    // イベント実行
+    // ==========================================
     private void StartEvent(GameEventData eventData)
     {
-        currentPlayingEvent = eventData;
-        LockPlayer(); // 移動と視点操作をロック
+        StartCoroutine(EventSequence(eventData)); // コルーチンとして呼び出すように変更
+    }
 
-        // 舞台装置（視点固定やNPC配置）のセットアップ
+    private IEnumerator EventSequence(GameEventData eventData)
+    {
+        currentPlayingEvent = eventData;
+
+        // 1. まず画面を暗転させる
+        if (UIManager.Instance != null && UIManager.Instance.fadeCanvasGroup != null) 
+        {
+            yield return StartCoroutine(UIManager.Instance.FadeOut(0.5f));
+        }
+
+        // 2. フラグ立て
+        if (!string.IsNullOrEmpty(eventData.startEventFlag))
+        {
+            SetFlag(eventData.startEventFlag, true);
+        }
+
+        // 3. 舞台セットアップ（ここでワープを完了させる！）
         if (!string.IsNullOrEmpty(eventData.targetStageID))
         {
-            // シーン内からIDが一致する舞台を探して準備する
             EventStage[] stages = FindObjectsOfType<EventStage>();
             foreach (var stage in stages)
             {
@@ -196,16 +241,29 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        // あなたのDialogueManagerに会話データを渡す
+        yield return null;
+
+        LockPlayer();
+
+        // 4. 画面を明るくする
+        if (UIManager.Instance != null && UIManager.Instance.fadeCanvasGroup != null) 
+        {
+            yield return StartCoroutine(UIManager.Instance.FadeIn(0.5f));
+        }
+
+        // 5. 会話スタート
         if (eventData.type == EventType.ConversationOnly || 
            (eventData.sentences != null && eventData.sentences.Count > 0))
         {
-            // ※注意: DialogueManagerを少し改修し、終わった時に CompleteCurrentEvent を呼べるようにする必要があります（後述）
-            
             DialogueData tempDialogue = ScriptableObject.CreateInstance<DialogueData>();
             tempDialogue.sentences = eventData.sentences;
             
             DialogueManager.Instance.StartDialogue(tempDialogue, CompleteCurrentEvent);
+        }
+        else if (eventData.type == EventType.PlayableIncident)
+        {
+            ChangePhase(GamePhase.Incident);
+            UnlockPlayer();
         }
     }
 
@@ -244,10 +302,22 @@ public class GameManager : MonoBehaviour
     public MonoBehaviour playerCameraScript;   // 視点移動（MouseLookなど）のスクリプト
 
     // イベント開始時に呼ぶ
+
     public void LockPlayer()
     {
         if (playerMovementScript != null) playerMovementScript.enabled = false;
         if (playerCameraScript != null) playerCameraScript.enabled = false;
+
+        // 物理エンジンをイベント中はずっと眠らせる
+        GameObject player = GameObject.FindWithTag("Player");
+        if (player != null)
+        {
+            CharacterController cc = player.GetComponent<CharacterController>();
+            if (cc != null) cc.enabled = false;
+
+            Rigidbody rb = player.GetComponent<Rigidbody>();
+            if (rb != null) rb.isKinematic = true; // 物理演算を停止
+        }
 
         // UI操作のためにカーソルを表示・ロック解除
         Cursor.lockState = CursorLockMode.None;
@@ -257,6 +327,17 @@ public class GameManager : MonoBehaviour
     // イベント終了時に呼ぶ
     public void UnlockPlayer()
     {
+        // 物理エンジンを目覚めさせる
+        GameObject player = GameObject.FindWithTag("Player");
+        if (player != null)
+        {
+            CharacterController cc = player.GetComponent<CharacterController>();
+            if (cc != null) cc.enabled = true;
+
+            Rigidbody rb = player.GetComponent<Rigidbody>();
+            if (rb != null) rb.isKinematic = false; // 物理演算を再開
+        }
+
         if (playerMovementScript != null) playerMovementScript.enabled = true;
         if (playerCameraScript != null) playerCameraScript.enabled = true;
 
@@ -331,10 +412,17 @@ public class GameManager : MonoBehaviour
 
         foreach (var mission in missionList)
         {
-            // そのフラグがミッションの「達成条件」だった場合
+            // ① 目標を「達成」した時の通知
             if (mission.targetFlagName == updatedFlag && GetFlag(updatedFlag) == true)
             {
                 UIManager.Instance.ShowMissionNotification("目的を達成しました\n" + mission.displayText);
+                return;
+            }
+
+            // ② 新しい目標が「発生」した時の通知（★これを追加！）
+            if (mission.requiredFlagToAppear == updatedFlag && GetFlag(updatedFlag) == true)
+            {
+                UIManager.Instance.ShowMissionNotification("新しい目的が追加されました");
                 return;
             }
         }
@@ -374,5 +462,14 @@ public class GameManager : MonoBehaviour
     {
         currentDay++;
         StartDay();
+    }
+
+    public void UpdateCameraTarget(string speakerName)
+    {
+        // 現在舞台がセットアップされていれば、喋っている人の方を向かせる
+        if (currentStage != null)
+        {
+            currentStage.LookAtSpeaker(speakerName);
+        }
     }
 }

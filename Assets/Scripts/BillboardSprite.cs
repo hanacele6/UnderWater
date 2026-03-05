@@ -20,7 +20,7 @@ public class BillboardSprite : MonoBehaviour
         sr = GetComponent<SpriteRenderer>();
     }
 
-    void Update()
+    void LateUpdate()
     {
         // 1. カメラの取得ロジック
         if (Application.isPlaying)

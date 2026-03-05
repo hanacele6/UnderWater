@@ -112,6 +112,11 @@ public class DialogueManager : MonoBehaviour
 
         // 4. UIの更新
         if (nameText != null) nameText.text = sentence.speakerName;
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.UpdateCameraTarget(sentence.speakerName);
+        }
         
         if (portraitImage != null)
         {

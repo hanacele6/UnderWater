@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
@@ -22,6 +23,25 @@ public class MissionMenuUI : MonoBehaviour
     void OnEnable()
     {
         UpdateMissionUI();
+        StartCoroutine(ForceUpdateUILayout());
+    }
+
+    private IEnumerator ForceUpdateUILayout()
+    {
+        // 1フレームだけ待つ（ここでUnityにテキストなどの最低限のサイズを計算させる）
+        yield return null;
+
+        // ① まず、子のコンテナ（mainとsub）のサイズを強制的に確定させる
+        if (mainMissionContainer != null)
+            LayoutRebuilder.ForceRebuildLayoutImmediate(mainMissionContainer.GetComponent<RectTransform>());
+        if (subMissionContainer != null)
+            LayoutRebuilder.ForceRebuildLayoutImmediate(subMissionContainer.GetComponent<RectTransform>());
+
+        // ② 最後に、一番親（Scroll ViewのContent）のサイズを確定させる
+        if (mainMissionContainer != null && mainMissionContainer.parent != null)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(mainMissionContainer.parent.GetComponent<RectTransform>());
+        }
     }
 
     // ==========================================
@@ -86,6 +106,10 @@ public class MissionMenuUI : MonoBehaviour
                 btn.onClick.AddListener(() => ShowMissionDetail(mission, isCleared));
             }
         }
+        Canvas.ForceUpdateCanvases(); // キャンバス全体を即座に更新
+    
+        // Content（一番親の箱）のRectTransformを取得してレイアウトを強制リビルド
+        UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(mainMissionContainer.parent.GetComponent<RectTransform>());
     }
 
     // ==========================================

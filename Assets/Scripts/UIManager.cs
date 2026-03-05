@@ -36,7 +36,7 @@ public class UIManager : MonoBehaviour
     [SerializeField] private float showXPosition = -20f;
     
     // ==========================================
-    // 今回追加：常時表示メインミッション＆会話UI
+    // 常時表示メインミッション＆会話UI
     // ==========================================
     [Header("Main Mission HUD")]
     [SerializeField] private GameObject mainMissionPanel;       // 画面左上などに常時出すパネル（任意）
@@ -47,6 +47,8 @@ public class UIManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI speakerNameText;   // 話者名（「艦長」など）
     [SerializeField] private TextMeshProUGUI dialogueMessageText; // セリフ本文
 
+    
+
     private bool isMenuOpen = false;
     private Coroutine hideCoroutine;
     private Coroutine notificationCoroutine;
@@ -56,6 +58,10 @@ public class UIManager : MonoBehaviour
     private List<DialogueLine> currentDialogueLines;
     private int currentLineIndex = 0;
     private Action onDialogueComplete;
+
+    [Header("Fade UI")]
+    [Tooltip("画面全体を覆う真っ黒なパネル")]
+    public CanvasGroup fadeCanvasGroup;
 
     private void Awake()
     {
@@ -294,5 +300,38 @@ public class UIManager : MonoBehaviour
         }
 
         notificationPanel.gameObject.SetActive(false);
+    }
+
+    // 画面を暗くする（フェードアウト）
+    public IEnumerator FadeOut(float duration)
+    {
+        if (fadeCanvasGroup == null) yield break;
+        fadeCanvasGroup.gameObject.SetActive(true);
+        float t = 0;
+        while (t < duration)
+        {
+            t += Time.deltaTime;
+            fadeCanvasGroup.alpha = Mathf.Clamp01(t / duration);
+            yield return null;
+        }
+        fadeCanvasGroup.alpha = 1f;
+    }
+
+    // 画面を明るくする（フェードイン）
+    public IEnumerator FadeIn(float duration)
+    {
+        if (fadeCanvasGroup == null) yield break;
+        
+        fadeCanvasGroup.gameObject.SetActive(true); 
+
+        float t = 0;
+        while (t < duration)
+        {
+            t += Time.deltaTime;
+            fadeCanvasGroup.alpha = 1f - Mathf.Clamp01(t / duration);
+            yield return null;
+        }
+        fadeCanvasGroup.alpha = 0f;
+        fadeCanvasGroup.gameObject.SetActive(false);
     }
 }

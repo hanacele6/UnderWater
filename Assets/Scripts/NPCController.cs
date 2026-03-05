@@ -4,6 +4,10 @@ using System.Collections;
 
 public class NPCController : MonoBehaviour, IInteractable
 {
+    [Header("基本設定")]
+        [Tooltip("台本(GameEventData)のSpeaker Nameと完全に一致させること！")]
+        public string characterName;
+
     // ==========================================
     // 会話の分岐ルールを定義する構造体
     // ==========================================
@@ -66,7 +70,7 @@ public class NPCController : MonoBehaviour, IInteractable
 
         if (DialogueManager.Instance.isTalking)
         {
-            DialogueManager.Instance.StartDialogue(null); // 前のロジックを流用してDisplayNextを呼ぶ
+            DialogueManager.Instance.DisplayNextSentence(); 
             return;
         }
 
@@ -121,7 +125,7 @@ public class NPCController : MonoBehaviour, IInteractable
         // ==========================================
         if (dialogueToPlay != null)
         {
-            DialogueManager.Instance.StartDialogue(dialogueToPlay, this);
+            DialogueManager.Instance.StartDialogue(dialogueToPlay, null, this);
             hasTalkedThisPhase = true;
             StartLookingAtPlayer();
         }
