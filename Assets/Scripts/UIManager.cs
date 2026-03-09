@@ -202,6 +202,8 @@ public class UIManager : MonoBehaviour
         isMenuOpen = !isMenuOpen;
         menuBackgroundPanel.SetActive(isMenuOpen);
 
+        SetMainMissionPanelVisible(!isMenuOpen);
+
         if (isMenuOpen)
         {
             HideMessage();
@@ -300,6 +302,23 @@ public class UIManager : MonoBehaviour
         }
 
         notificationPanel.gameObject.SetActive(false);
+    }
+
+    // HUDの表示・非表示を切り替えるメソッド
+    public void SetMainMissionPanelVisible(bool isVisible)
+    {
+        if (mainMissionPanel != null)
+        {
+            // ただし「表示しろ」と言われても、目的のテキストが空っぽなら枠だけ出さないようにする
+            if (isVisible && !string.IsNullOrEmpty(mainMissionText.text))
+            {
+                mainMissionPanel.SetActive(true);
+            }
+            else
+            {
+                mainMissionPanel.SetActive(false);
+            }
+        }
     }
 
     // 画面を暗くする（フェードアウト）

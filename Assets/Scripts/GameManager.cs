@@ -257,6 +257,8 @@ public class GameManager : MonoBehaviour
         {
             DialogueData tempDialogue = ScriptableObject.CreateInstance<DialogueData>();
             tempDialogue.sentences = eventData.sentences;
+
+            tempDialogue.sentences = eventData.sentences;
             
             DialogueManager.Instance.StartDialogue(tempDialogue, CompleteCurrentEvent);
         }
@@ -394,6 +396,8 @@ public class GameManager : MonoBehaviour
 
         // フラグが更新されたら、通知を出すかチェックする
         CheckMissionNotification(targetFlagName);
+
+        UpdateMainMissionHUD();
     }
 
     public bool GetFlag(string targetFlagName)
@@ -456,6 +460,32 @@ public class GameManager : MonoBehaviour
 
     [Header("現在のミッション一覧")]
     public List<MissionObjective> missionList = new List<MissionObjective>();
+
+
+    // ==========================================
+    // HUD（常時表示パネル）の更新処理
+    // ==========================================
+    public void UpdateMainMissionHUD()
+    {
+        if (UIManager.Instance == null) return;
+
+        // missionListの中から「メイン目標(isMainObjective)であり」「まだ達成しておらず」「表示条件(フラグや日数)を満たしている」ものを探す
+        foreach (var mission in missionList)
+        {
+            bool isCleared = GetFlag(mission.targetFlagName);
+            bool isAppearFlagSet = string.IsNullOrEmpty(mission.requiredFlagToAppear) || GetFlag(mission.requiredFlagToAppear);
+
+            if (mission.isMainObjective && !isCleared && isAppearFlagSet)
+            {
+                // 条件を満たす最初のメイン目標をHUDに表示して終了
+                UIManager.Instance.UpdateMainMission(mission.displayText);
+                return;
+            }
+        }
+
+        // 該当する進行中のメイン目標がなければHUDを空（非表示）にする
+        UIManager.Instance.UpdateMainMission(""); 
+    }
 
 
     public void GoToNextDay()

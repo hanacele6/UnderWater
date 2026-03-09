@@ -20,10 +20,13 @@ MonoBehaviour:
   eventMemo: "\u6700\u521D\u306E\u30A4\u30F3\u30C8\u30ED\u3067\u3059"
   startEventFlag: 
   sentences:
-  - speakerName: "\u30AB\u30F3\u30CA"
+  - label: 
+    speakerName: "\u30AB\u30F3\u30CA"
     portrait: {fileID: 0}
     text: "\u3053\u308C\u306F\u30C6\u30B9\u30C8\u3060\u3088"
     voicePitch: 0
+    choices: []
+    forceJumpLabel: 
   targetStageID: Control Room
   nextPhaseAfterEvent: 0
   setFlagOnComplete: TestQuest
