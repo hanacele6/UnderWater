@@ -42,10 +42,10 @@ public class UIManager : MonoBehaviour
     [SerializeField] private GameObject mainMissionPanel;       // 画面左上などに常時出すパネル（任意）
     [SerializeField] private TextMeshProUGUI mainMissionText;   // 「現在の目標：〇〇」を表示するテキスト
 
-    [Header("Dialogue UI")]
-    [SerializeField] private GameObject dialoguePanel;          // 会話ウィンドウ全体
-    [SerializeField] private TextMeshProUGUI speakerNameText;   // 話者名（「艦長」など）
-    [SerializeField] private TextMeshProUGUI dialogueMessageText; // セリフ本文
+    //[Header("Dialogue UI")]
+    //[SerializeField] private GameObject dialoguePanel;          // 会話ウィンドウ全体
+    //[SerializeField] private TextMeshProUGUI speakerNameText;   // 話者名（「艦長」など）
+    //[SerializeField] private TextMeshProUGUI dialogueMessageText; // セリフ本文
 
     
 
@@ -54,10 +54,10 @@ public class UIManager : MonoBehaviour
     private Coroutine notificationCoroutine;
 
     // 会話用の状態管理変数
-    private bool isDialogueActive = false;
-    private List<DialogueLine> currentDialogueLines;
-    private int currentLineIndex = 0;
-    private Action onDialogueComplete;
+    //private bool isDialogueActive = false;
+    //private List<DialogueLine> currentDialogueLines;
+    //private int currentLineIndex = 0;
+    //private Action onDialogueComplete;
 
     [Header("Fade UI")]
     [Tooltip("画面全体を覆う真っ黒なパネル")]
@@ -68,13 +68,14 @@ public class UIManager : MonoBehaviour
         Instance = this;
         
         // 最初は会話パネルを隠しておく
-        if (dialoguePanel != null) dialoguePanel.SetActive(false);
+        //if (dialoguePanel != null) dialoguePanel.SetActive(false);
     }
 
     public bool canOpenMenu = true;
 
     private void Update()
     {
+        /*
         // 会話中はメニューを開けないようにし、クリックで会話を進める
         if (isDialogueActive)
         {
@@ -85,6 +86,7 @@ public class UIManager : MonoBehaviour
             }
             return; // 会話中はこれ以下の処理（メニュー開閉など）を無視する
         }
+        */
 
         // TABキーでメニュー全体の開閉
         if (canOpenMenu && Input.GetKeyDown(KeyCode.Tab))
@@ -99,7 +101,7 @@ public class UIManager : MonoBehaviour
     }
 
     // ==========================================
-    // 今回追加：メインミッションの更新処理
+    // メインミッションの更新処理
     // ==========================================
     public void UpdateMainMission(string newObjective)
     {
@@ -109,13 +111,12 @@ public class UIManager : MonoBehaviour
             if (mainMissionPanel != null) mainMissionPanel.SetActive(true);
         }
 
-        // ついでに右からのスライド通知も出すと親切です
+       
         ShowMissionNotification("目的が更新されました");
     }
 
-    // ==========================================
-    // 今回追加：会話（Dialogue）システム
-    // ==========================================
+    
+    /*
     public void StartDialogue(List<DialogueLine> lines, Action onCompleteCallback)
     {
         if (lines == null || lines.Count == 0)
@@ -169,9 +170,9 @@ public class UIManager : MonoBehaviour
         onDialogueComplete?.Invoke(); 
     }
 
-    // ==========================================
-    // 以下、既存のメッセージ・メニュー・通知処理（変更なし）
-    // ==========================================
+    */
+    
+
     public void ShowMessage(string text)
     {
         messageText.text = text;
@@ -203,6 +204,8 @@ public class UIManager : MonoBehaviour
         menuBackgroundPanel.SetActive(isMenuOpen);
 
         SetMainMissionPanelVisible(!isMenuOpen);
+
+        SetInteractUIVisible(!isMenuOpen);
 
         if (isMenuOpen)
         {
@@ -252,6 +255,12 @@ public class UIManager : MonoBehaviour
 
     public void ShowInteractPrompt(string promptText)
     {
+        if ((DialogueManager.Instance != null && DialogueManager.Instance.isTalking) || isMenuOpen)
+        {
+            if (interactPrompt != null) interactPrompt.SetActive(false);
+            return; 
+        }
+
         if (!string.IsNullOrEmpty(promptText))
         {
             interactPrompt.GetComponent<TextMeshProUGUI>().text = "[E] " + promptText;
@@ -319,6 +328,12 @@ public class UIManager : MonoBehaviour
                 mainMissionPanel.SetActive(false);
             }
         }
+    }
+
+    public void SetInteractUIVisible(bool isVisible)
+    {
+        if (crosshair != null) crosshair.SetActive(isVisible);
+        if (interactPrompt != null) interactPrompt.SetActive(isVisible);
     }
 
     // 画面を暗くする（フェードアウト）

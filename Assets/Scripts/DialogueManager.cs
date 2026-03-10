@@ -78,8 +78,10 @@ public class DialogueManager : MonoBehaviour
 
         dialoguePanel.SetActive(true);
         if (choicePanel != null) choicePanel.SetActive(false); 
-        if (UIManager.Instance != null) UIManager.Instance.SetMainMissionPanelVisible(false);
-        
+        if (UIManager.Instance != null) {
+            UIManager.Instance.SetMainMissionPanelVisible(false);
+            UIManager.Instance.SetInteractUIVisible(false);
+        }
         isTalking = true;
         isWaitingForChoice = false;
         
@@ -147,7 +149,6 @@ public class DialogueManager : MonoBehaviour
         typingCoroutine = StartCoroutine(TypeSentence(currentFullText));
     }
 
-    // ★ 新規追加：セリフ表示後に選択肢やジャンプがないか確認する処理
     private void CheckForChoicesOrJumps()
     {
         // 読み終わったばかりの行（currentIndexはすでに進んでいるので -1 する）
@@ -158,10 +159,19 @@ public class DialogueManager : MonoBehaviour
         {
             ShowChoices(currentSentence.choices);
         }
-        // ② 強制ジャンプ（またはEND）の指示があれば飛ぶ
+        // ② 強制ジャンプの指示があれば飛ぶ
         else if (!string.IsNullOrEmpty(currentSentence.forceJumpLabel))
         {
-            JumpToLabel(currentSentence.forceJumpLabel);
+            if (currentSentence.forceJumpLabel == "END")
+            {
+                // ★修正箇所：ENDの場合は即終了させず、「次のクリックで終了」するようにインデックスを最大値にして待機する
+                currentIndex = currentSentences.Count;
+            }
+            else
+            {
+                // END以外の通常のラベルジャンプなら、そのままワープする
+                JumpToLabel(currentSentence.forceJumpLabel);
+            }
         }
     }
 
@@ -268,7 +278,14 @@ public class DialogueManager : MonoBehaviour
         onCompleteCallback?.Invoke();
         onCompleteCallback = null;
 
-        if (UIManager.Instance != null) UIManager.Instance.SetMainMissionPanelVisible(true);
+        if (UIManager.Instance != null) 
+        {
+            // HUD（目的テキスト）を戻す
+            UIManager.Instance.SetMainMissionPanelVisible(true);
+            
+            // クロスヘア・インタラクト文字を戻す
+            UIManager.Instance.SetInteractUIVisible(true); 
+        }
     }
 
     void Update()

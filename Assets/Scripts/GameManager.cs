@@ -456,6 +456,14 @@ public class GameManager : MonoBehaviour
 
         [Tooltip("このフラグがONの時だけメニューに表示する（空欄なら条件なしで表示）")]
         public string requiredFlagToAppear;
+
+        [Header("ガイド設定")]
+        [Tooltip("目的地のオブジェクト（空欄ならガイドを表示しません）")]
+        public Transform targetLocation;
+
+        [Header("ソナー設定")]
+        [Tooltip("チェックを入れると、潜水艦のソナー画面にマーカーと波紋が出ます")]
+        public bool showOnSonar = false;
     }
 
     [Header("現在のミッション一覧")]
@@ -469,7 +477,6 @@ public class GameManager : MonoBehaviour
     {
         if (UIManager.Instance == null) return;
 
-        // missionListの中から「メイン目標(isMainObjective)であり」「まだ達成しておらず」「表示条件(フラグや日数)を満たしている」ものを探す
         foreach (var mission in missionList)
         {
             bool isCleared = GetFlag(mission.targetFlagName);
@@ -477,14 +484,36 @@ public class GameManager : MonoBehaviour
 
             if (mission.isMainObjective && !isCleared && isAppearFlagSet)
             {
-                // 条件を満たす最初のメイン目標をHUDに表示して終了
                 UIManager.Instance.UpdateMainMission(mission.displayText);
-                return;
+                
+                // フワフワ図形マーカー（既存）
+                if (MissionGuide.Instance != null) MissionGuide.Instance.SetTarget(mission.targetLocation);
+                
+                // ==========================================
+                // スイッチがONの時だけソナーに目的地を渡す！
+                // ==========================================
+                if (SonarManager.Instance != null)
+                {
+                    if (mission.showOnSonar)
+                    {
+                        // 潜水艦用のミッションならソナーに教える
+                        SonarManager.Instance.SetMissionTarget(mission.targetLocation);
+                    }
+                    else
+                    {
+                        // 1人称用のミッションならソナーのターゲットは空（null）にして消す
+                        SonarManager.Instance.SetMissionTarget(null);
+                    }
+                }
+                
+                return; // 表示できたらここで終了
             }
         }
 
-        // 該当する進行中のメイン目標がなければHUDを空（非表示）にする
+        // 該当ミッションがない場合の処理
         UIManager.Instance.UpdateMainMission(""); 
+        if (MissionGuide.Instance != null) MissionGuide.Instance.SetTarget(null);
+        if (SonarManager.Instance != null) SonarManager.Instance.SetMissionTarget(null);
     }
 
 
