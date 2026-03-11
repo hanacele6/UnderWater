@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using TMPro; 
 using UnityEngine.UI;
+using UnityEngine.Video; 
 
 public class DialogueManager : MonoBehaviour
 {
@@ -19,7 +20,16 @@ public class DialogueManager : MonoBehaviour
     public GameObject choicePanel;         // 選択肢ボタンを並べる親パネル
     public GameObject choiceButtonPrefab;  // 選択肢ボタンのプレハブ
 
-    // ★ 変更：Queue（ところてん方式）をやめ、リストと行数（インデックス）で管理する
+    // ==========================================
+    // 全画面演出（スチル画像・映像）UI
+    // ==========================================
+    [Header("全画面演出設定")]
+    public Image fullScreenImageUI;     // スチル画像を表示するUI
+    public RawImage videoDisplayUI;     // 動画を映すUIスクリーン
+    public VideoPlayer videoPlayer;     // 動画再生コンポーネント
+    
+    private bool isWaitingForVideo = false; // 映像が終わるのを待っているか？
+
     private List<DialogueData.Sentence> currentSentences;
     private int currentIndex = 0;
 
@@ -35,7 +45,6 @@ public class DialogueManager : MonoBehaviour
     private NPCController currentInteractedNPC;
     private Action onCompleteCallback;
 
-    // 選択肢待ち状態かどうか
     private bool isWaitingForChoice = false;
 
     void Awake()
@@ -43,6 +52,32 @@ public class DialogueManager : MonoBehaviour
         Instance = this;
         dialoguePanel.SetActive(false); 
         if (choicePanel != null) choicePanel.SetActive(false);
+
+        // ★追加：画像と動画の画面を最初は隠しておく
+        ClearMedia();
+
+        // ★追加：動画用のスクリーン（RenderTexture）を自動で作成して貼り付ける便利処理
+        if (videoPlayer != null && videoDisplayUI != null)
+        {
+            RenderTexture rt = new RenderTexture(1920, 1080, 16, RenderTextureFormat.ARGB32);
+            videoPlayer.renderMode = VideoRenderMode.RenderTexture;
+            videoPlayer.targetTexture = rt;
+            videoDisplayUI.texture = rt;
+        }
+    }
+
+    // ==========================================
+    // ★追加：画像と動画を画面から消すメソッド
+    // ==========================================
+    private void ClearMedia()
+    {
+        if (fullScreenImageUI != null) fullScreenImageUI.gameObject.SetActive(false);
+        if (videoDisplayUI != null) videoDisplayUI.gameObject.SetActive(false);
+        if (videoPlayer != null)
+        {
+            videoPlayer.Stop();
+            videoPlayer.clip = null;
+        }
     }
 
     public void ForceEndDialogue()
@@ -57,15 +92,18 @@ public class DialogueManager : MonoBehaviour
         currentDialogue = null;
         isTalking = false;
         isWaitingForChoice = false;
+        isWaitingForVideo = false; // ★追加
         dialoguePanel.SetActive(false);
         if (choicePanel != null) choicePanel.SetActive(false);
         
+        ClearMedia(); // ★追加：強制終了時も画像を消す
+
         Debug.Log("会話が外部要因で強制終了されました");
     }
 
     public void StartDialogue(DialogueData dialogue, Action onComplete = null, NPCController npc = null)
     {
-        if (isTalking && !isWaitingForChoice)
+        if (isTalking && !isWaitingForChoice && !isWaitingForVideo)
         {
             DisplayNextSentence();
             return;
@@ -83,9 +121,10 @@ public class DialogueManager : MonoBehaviour
             UIManager.Instance.SetInteractUIVisible(false);
         }
         isTalking = true;
+        if (UIManager.Instance != null) UIManager.Instance.SetDialogueMode(true);
         isWaitingForChoice = false;
+        isWaitingForVideo = false;
         
-        // ★ 変更：リストをセットして、1行目（0）からスタートする
         currentSentences = dialogue.sentences;
         currentIndex = 0;
         currentDialogue = dialogue; 
@@ -95,29 +134,25 @@ public class DialogueManager : MonoBehaviour
 
     public void DisplayNextSentence()
     {
-        if (isWaitingForChoice) return;
+        if (isWaitingForChoice || isWaitingForVideo) return; // ★変更：映像待ちの時は次へ進めない
 
         if (typingCoroutine != null)
         {
-            // タイピング中なら一気に全部表示するスキップ処理
             StopCoroutine(typingCoroutine);
             typingCoroutine = null;
             string cleanText = System.Text.RegularExpressions.Regex.Replace(currentFullText, "<speed=.*?>", "");
             dialogueText.text = cleanText; 
 
-            // ★ タイピングをスキップした直後に、もし選択肢やジャンプ指定があれば即発動させる
             CheckForChoicesOrJumps();
             return;
         }
 
-        // ★ 変更：行が最後まで到達したら終了
         if (currentSentences == null || currentIndex >= currentSentences.Count)
         {
             EndDialogue();
             return;
         }
 
-        // ★ 変更：次のセリフを取り出して、行数を1つ進める
         var sentence = currentSentences[currentIndex];
         currentIndex++; 
         
@@ -146,46 +181,100 @@ public class DialogueManager : MonoBehaviour
         currentPitch = sentence.voicePitch; 
         if (currentPitch <= 0) currentPitch = 1.0f; 
 
+        // ==========================================
+        // ★追加：全画面演出（画像・映像）の反映
+        // ==========================================
+        if (sentence.clearMedia) ClearMedia(); // メディアを消す指示があれば消す
+
+        if (sentence.fullScreenImage != null && fullScreenImageUI != null)
+        {
+            fullScreenImageUI.sprite = sentence.fullScreenImage;
+            fullScreenImageUI.gameObject.SetActive(true);
+        }
+
+        if (sentence.videoClip != null && videoPlayer != null && videoDisplayUI != null)
+        {
+            videoPlayer.clip = sentence.videoClip;
+            videoDisplayUI.gameObject.SetActive(true);
+            videoPlayer.Play();
+
+            if (sentence.waitVideoFinish)
+            {
+                // ★ 映像を待つ設定なら、専用の待機モードに入る
+                StartCoroutine(WaitVideoFinishRoutine(sentence));
+                return; // ここで処理を止める（文字送りはコルーチン内でやる）
+            }
+        }
+
+        // 映像待機がない場合は通常通り文字送りを開始
         typingCoroutine = StartCoroutine(TypeSentence(currentFullText));
+    }
+
+    // ==========================================
+    // ★追加：動画が終わるまで待機する処理
+    // ==========================================
+    private IEnumerator WaitVideoFinishRoutine(DialogueData.Sentence sentence)
+    {
+        isWaitingForVideo = true;
+
+        bool hasText = !string.IsNullOrEmpty(sentence.text);
+
+        // 文字が空欄の場合は、会話の黒枠自体を隠して「映画」のようにする
+        if (!hasText)
+        {
+            dialoguePanel.SetActive(false);
+        }
+        else
+        {
+            // 文字がある場合は、裏で文字送りを進めておく
+            typingCoroutine = StartCoroutine(TypeSentence(sentence.text));
+        }
+
+        // 動画の再生が始まるまで少し待つ
+        yield return new WaitForSeconds(0.1f);
+        yield return new WaitUntil(() => videoPlayer.isPlaying);
+
+        // 動画が終わるまでひたすら待機（クリックしても進みません）
+        yield return new WaitWhile(() => videoPlayer.isPlaying);
+
+        isWaitingForVideo = false;
+
+        // 会話の黒枠を元に戻す
+        dialoguePanel.SetActive(true);
+
+        // もし「文字空欄（映画モード）」だった場合は、動画が終わったら自動で次のセリフへ進むとスムーズ！
+        if (!hasText)
+        {
+            DisplayNextSentence();
+        }
     }
 
     private void CheckForChoicesOrJumps()
     {
-        // 読み終わったばかりの行（currentIndexはすでに進んでいるので -1 する）
         var currentSentence = currentSentences[currentIndex - 1];
 
-        // ① 選択肢があれば表示する
         if (currentSentence.choices != null && currentSentence.choices.Count > 0)
         {
             ShowChoices(currentSentence.choices);
         }
-        // ② 強制ジャンプの指示があれば飛ぶ
         else if (!string.IsNullOrEmpty(currentSentence.forceJumpLabel))
         {
             if (currentSentence.forceJumpLabel == "END")
             {
-                // ★修正箇所：ENDの場合は即終了させず、「次のクリックで終了」するようにインデックスを最大値にして待機する
                 currentIndex = currentSentences.Count;
             }
             else
             {
-                // END以外の通常のラベルジャンプなら、そのままワープする
                 JumpToLabel(currentSentence.forceJumpLabel);
             }
         }
     }
 
-    // ==========================================
-    // 選択肢とジャンプの処理
-    // ==========================================
     private void ShowChoices(List<DialogueData.Choice> choices)
     {
         isWaitingForChoice = true;
         
-        foreach (Transform child in choicePanel.transform)
-        {
-            Destroy(child.gameObject);
-        }
+        foreach (Transform child in choicePanel.transform) Destroy(child.gameObject);
 
         choicePanel.SetActive(true);
 
@@ -208,37 +297,33 @@ public class DialogueManager : MonoBehaviour
         choicePanel.SetActive(false);
         isWaitingForChoice = false;
 
-        // フラグを立てる
         if (!string.IsNullOrEmpty(selectedChoice.flagToSetOnChoose) && GameManager.Instance != null)
         {
             GameManager.Instance.SetFlag(selectedChoice.flagToSetOnChoose, true);
         }
 
-        // ★ 指定されたラベルへジャンプする！
         JumpToLabel(selectedChoice.jumpToLabel);
     }
 
-    // ★ 新規追加：ラベルを探して行数をワープする機能
     private void JumpToLabel(string targetLabel)
     {
         if (string.IsNullOrEmpty(targetLabel))
         {
-            DisplayNextSentence(); // ラベルが無ければそのまま次の行へ
+            DisplayNextSentence(); 
             return;
         }
 
         if (targetLabel == "END")
         {
-            EndDialogue(); // ENDという指示なら即終了
+            EndDialogue(); 
             return;
         }
 
-        // リストの中からラベルが一致する行を探す
         for (int i = 0; i < currentSentences.Count; i++)
         {
             if (currentSentences[i].label == targetLabel)
             {
-                currentIndex = i; // 行数（インデックス）を上書きしてワープ！
+                currentIndex = i; 
                 DisplayNextSentence();
                 return;
             }
@@ -248,17 +333,18 @@ public class DialogueManager : MonoBehaviour
         DisplayNextSentence();
     }
 
-    // ==========================================
-    // 終了処理とコルーチン
-    // ==========================================
     void EndDialogue()
     {
         dialoguePanel.SetActive(false);
         if (choicePanel != null) choicePanel.SetActive(false);
         
         isTalking = false;
+        if (UIManager.Instance != null) UIManager.Instance.SetDialogueMode(false);
         isWaitingForChoice = false;
-        
+        isWaitingForVideo = false;
+
+        ClearMedia(); // ★追加：会話が終わったら画像と動画を消す
+
         Debug.Log("会話終了");
 
         if (currentInteractedNPC != null)
@@ -280,18 +366,20 @@ public class DialogueManager : MonoBehaviour
 
         if (UIManager.Instance != null) 
         {
-            // HUD（目的テキスト）を戻す
             UIManager.Instance.SetMainMissionPanelVisible(true);
-            
-            // クロスヘア・インタラクト文字を戻す
             UIManager.Instance.SetInteractUIVisible(true); 
         }
     }
 
     void Update()
     {
-        if (isTalking && !isWaitingForChoice && (Input.GetMouseButtonDown(0) || Input.GetKeyDown(KeyCode.Space)))
+        // ★変更：isWaitingForVideo（映像待ち）の時もクリックを無効にする
+        if (isTalking && !isWaitingForChoice && !isWaitingForVideo && (Input.GetMouseButtonDown(0) || Input.GetKeyDown(KeyCode.Space)))
         {
+            if (UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()) 
+            {
+                return; 
+            }
             DisplayNextSentence();
         }
     }
@@ -338,7 +426,6 @@ public class DialogueManager : MonoBehaviour
         }
         typingCoroutine = null; 
 
-        // ★ 追加：文字送りが終わった直後に、選択肢やジャンプがないか確認する
         CheckForChoicesOrJumps();
     }
 }

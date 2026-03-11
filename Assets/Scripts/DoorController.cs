@@ -4,11 +4,17 @@ using System.Collections;
 // IInteractable を継承
 public class DoorController : MonoBehaviour, IInteractable
 {
-    public enum DoorType { Normal, RequiresKey, Broken }
+    // ★追加：RequiresFlag（フラグで開くドア）を種類に追加しました
+    public enum DoorType { Normal, RequiresKey, RequiresFlag, Broken }
     public DoorType doorType;
 
     [Header("鍵が必要な場合のみセット")]
     public ItemData requiredKey;
+
+    // ★追加：フラグ用の変数
+    [Header("フラグが必要な場合のみセット")]
+    [Tooltip("このフラグがONになっていたら開くようになります")]
+    public string requiredFlag;
 
     [Header("ドアの割り当て(main:左、sub:右)")]
     [Tooltip("片開きの場合はここだけセットしてください（通常は左側）")]
@@ -71,6 +77,7 @@ public class DoorController : MonoBehaviour, IInteractable
         {
             case DoorType.Normal: return "開ける";
             case DoorType.RequiresKey: return "ロック解除";
+            case DoorType.RequiresFlag: return "開ける"; // 見た目は普通のドアと同じにする
             case DoorType.Broken: return "調べる";
             default: return "調べる";
         }
@@ -97,14 +104,15 @@ public class DoorController : MonoBehaviour, IInteractable
         switch (doorType)
         {
             case DoorType.Normal:
-                // UIManager.Instance.ShowMessage("ドアが開いた。");
                 StartCoroutine(OpenDoorsSequence());
                 break;
 
             case DoorType.RequiresKey:
-                if (InventoryManager.Instance.inventoryList.Contains(requiredKey))
+                // ★修正：requiredKeyがちゃんとセットされているか（nullでないか）を確認する！
+                if (requiredKey != null && InventoryManager.Instance.inventoryList.Contains(requiredKey))
                 {
                     UIManager.Instance.ShowMessage("【" + requiredKey.itemName + "】でロックを解除した。");
+                    doorType = DoorType.Normal; // ★改良：一度開けたら、次からは普通のドアになる
                     StartCoroutine(OpenDoorsSequence());
                 }
                 else
@@ -113,8 +121,22 @@ public class DoorController : MonoBehaviour, IInteractable
                 }
                 break;
 
+            // ★追加：フラグで開くドアの処理
+            case DoorType.RequiresFlag:
+                if (!string.IsNullOrEmpty(requiredFlag) && GameManager.Instance.GetFlag(requiredFlag))
+                {
+                    UIManager.Instance.ShowMessage("ロックが解除された。");
+                    doorType = DoorType.Normal; // ★改良：一度開けたら、次からは普通のドアになる
+                    StartCoroutine(OpenDoorsSequence());
+                }
+                else
+                {
+                    UIManager.Instance.ShowMessage("ロックされている。電力の供給やシステムの操作が必要なようだ。");
+                }
+                break;
+
             case DoorType.Broken:
-                UIManager.Instance.ShowMessage("システムエラー。電力の供給が絶たれている。");
+                UIManager.Instance.ShowMessage("システムエラー。扉が完全に破損している。");
                 break;
         }
     }
@@ -207,6 +229,11 @@ public class DoorController : MonoBehaviour, IInteractable
         // ==========================================
 
         isMoving = false;
-        UIManager.Instance.ShowInteractPrompt(GetInteractPrompt());
+        
+        // 動き終わったらUI（テキスト）を更新する
+        if (UIManager.Instance != null)
+        {
+            UIManager.Instance.ShowInteractPrompt(GetInteractPrompt());
+        }
     }
 }

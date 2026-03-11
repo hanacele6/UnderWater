@@ -142,8 +142,19 @@ public class SonarManager : MonoBehaviour
         RectTransform rt = sonarDisplayImage.GetComponent<RectTransform>();
         radarUIRadius = rt.rect.width / 2f;
 
-        // ★追加：最初はマーカーを隠しておく
         if (missionMarker != null) missionMarker.gameObject.SetActive(false);
+
+        currentPulseAlpha = 0f;
+        if (pulseRing != null)
+        {
+            UnityEngine.UI.Image ringImage = pulseRing.GetComponent<UnityEngine.UI.Image>();
+            if (ringImage != null)
+            {
+                Color c = ringImage.color;
+                c.a = 0f;
+                ringImage.color = c;
+            }
+        }
     }
 
     // ★追加：外部から目的地をセットするメソッド
@@ -153,6 +164,22 @@ public class SonarManager : MonoBehaviour
         if (missionMarker != null)
         {
             missionMarker.gameObject.SetActive(target != null);
+        }
+
+        // ★追加：ターゲットが無い場合は、波紋を強制的に透明にして消す
+        if (target == null)
+        {
+            currentPulseAlpha = 0f;
+            if (pulseRing != null)
+            {
+                UnityEngine.UI.Image ringImage = pulseRing.GetComponent<UnityEngine.UI.Image>();
+                if (ringImage != null)
+                {
+                    Color c = ringImage.color;
+                    c.a = 0f;
+                    ringImage.color = c;
+                }
+            }
         }
     }
 

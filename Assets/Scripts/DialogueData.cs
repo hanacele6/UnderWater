@@ -35,6 +35,16 @@ public class DialogueData : ScriptableObject
         
         [TextArea(3, 10)]
         public string text;
+
+        [Header("▼ 全画面演出 (スチル画像 / 映像)")]
+        public Sprite fullScreenImage; // このセリフで表示する全画面画像
+        public UnityEngine.Video.VideoClip videoClip; // このセリフで再生する映像
+
+        [Tooltip("ONにすると、このセリフになった瞬間に画像/動画を画面から消します")]
+        public bool clearMedia; 
+
+        [Tooltip("ONにすると、映像が終わるまでクリックしても次のセリフに進まなくなります")]
+        public bool waitVideoFinish;
         
         [Header("演出設定")]
         [Range(0.5f, 2.0f)] public float voicePitch; // 1.0が標準
@@ -47,6 +57,7 @@ public class DialogueData : ScriptableObject
         [Tooltip("指定したラベルへ強制的に飛びます（分岐の合流用）。『END』と入力するとそこで会話が終了します。")]
         public string forceJumpLabel;
     }
+    
 
     [Header("会話の台本")]
     public List<Sentence> sentences = new List<Sentence>(); // セリフのリスト

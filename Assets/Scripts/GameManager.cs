@@ -417,13 +417,40 @@ public class GameManager : MonoBehaviour
         foreach (var mission in missionList)
         {
             // ① 目標を「達成」した時の通知
-            if (mission.targetFlagName == updatedFlag && GetFlag(updatedFlag) == true)
+            // ★変更：更新されたフラグが、このミッションの条件リストに含まれているか？
+            if (mission.targetFlagNames.Contains(updatedFlag) && GetFlag(updatedFlag) == true)
             {
-                UIManager.Instance.ShowMissionNotification("目的を達成しました\n" + mission.displayText);
-                return;
+                // リストに含まれていた場合、ミッションの「全て」のフラグがONになったか確認する
+                bool isFullyCleared = true;
+                int clearedCount = 0; // （おまけ）進捗表示用
+
+                foreach (string flag in mission.targetFlagNames)
+                {
+                    if (!GetFlag(flag))
+                    {
+                        isFullyCleared = false;
+                    }
+                    else
+                    {
+                        clearedCount++;
+                    }
+                }
+
+                if (isFullyCleared)
+                {
+                    // 全部ONなら、完全クリアの通知！
+                    UIManager.Instance.ShowMissionNotification("目的を達成しました\n" + mission.displayText);
+                    return; 
+                }
+                else
+                {
+                    // 全部ではないが、条件の1つをクリアした時の「進捗通知」（お好みで！）
+                    UIManager.Instance.ShowMissionNotification($"目的の進捗: {clearedCount}/{mission.targetFlagNames.Count}\n" + mission.displayText);
+                    return;
+                }
             }
 
-            // ② 新しい目標が「発生」した時の通知（★これを追加！）
+            // ② 新しい目標が「発生」した時の通知（※ここは元のままでOKです！）
             if (mission.requiredFlagToAppear == updatedFlag && GetFlag(updatedFlag) == true)
             {
                 UIManager.Instance.ShowMissionNotification("新しい目的が追加されました");
@@ -431,7 +458,7 @@ public class GameManager : MonoBehaviour
             }
         }
     }
-
+    
     // ==========================================
     // ミッション（目的）管理システム
     // ==========================================
@@ -445,8 +472,8 @@ public class GameManager : MonoBehaviour
         public string description;
         public bool isMainObjective;     
         
-        [Tooltip("このフラグがTrueになったら『達成済み』になる")]
-        public string targetFlagName;    
+        [Tooltip("クリアに必要なフラグのリスト（全てONでクリア）")]
+        public List<string> targetFlagNames = new List<string>();
 
         [Tooltip("このミッションがメニューに表示され始めるフェーズ")]
         public GamePhase appearPhase = GamePhase.Operation; 
@@ -479,7 +506,20 @@ public class GameManager : MonoBehaviour
 
         foreach (var mission in missionList)
         {
-            bool isCleared = GetFlag(mission.targetFlagName);
+            bool isCleared = true;
+
+            // リストに登録されたフラグを1つずつ確認
+            foreach (string flagName in mission.targetFlagNames)
+            {
+                if (!GetFlag(flagName)) 
+                {
+                    isCleared = false; // 1つでもOFF（達成していない）なら、未クリア！
+                    break;             // チェックを打ち切る
+                }
+            }
+
+            if (mission.targetFlagNames.Count == 0) isCleared = false;
+
             bool isAppearFlagSet = string.IsNullOrEmpty(mission.requiredFlagToAppear) || GetFlag(mission.requiredFlagToAppear);
 
             if (mission.isMainObjective && !isCleared && isAppearFlagSet)

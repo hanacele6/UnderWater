@@ -1,91 +1,79 @@
 using UnityEngine;
 
-// 以前作成した IInteractable インターフェースを継承
-[RequireComponent(typeof(Collider))] // 当たり判定が必要
+[RequireComponent(typeof(Collider))]
 public class LadderInteractable : MonoBehaviour, IInteractable
 {
-    public enum LadderType
-    {
-        BottomToTop, // 下に置いてあるトリガー（昇る用）
-        TopToBottom  // 上に置いてあるトリガー（降りる用）
-    }
-
-    [Header("はしごの設定")]
-    public LadderType type = LadderType.BottomToTop;
+    [Header("ワープ先の設定")]
+    [Tooltip("下にいる時に「昇る」を選んだ場合のワープ先")]
+    public Transform topDestination;
     
-    [Tooltip("ワープ先の場所（もう一方のトリガー付近に置いたTransformを指定）")]
-    public Transform destination; 
-
-    [Tooltip("移動後にプレイヤーが向く方向（空欄ならプレイヤーの向きを維持）")]
-    public Transform lookAtTarget;
+    [Tooltip("上にいる時に「降りる」を選んだ場合のワープ先")]
+    public Transform bottomDestination;
 
     void Start()
     {
-        // Colliderの設定を自動でTriggerにする（物理的にぶつからないようにする）
+        // 物理的にぶつからないようにする
         Collider col = GetComponent<Collider>();
         col.isTrigger = true;
     }
 
     // ==========================================
+    // プレイヤーが上と下のどちらにいるかを判定する便利メソッド
+    // ==========================================
+    private bool IsPlayerAtBottom(GameObject player)
+    {
+        if (topDestination == null || bottomDestination == null) return true;
+
+        // ワープ先（上）とワープ先（下）のちょうど真ん中の高さを計算する
+        float midY = (topDestination.position.y + bottomDestination.position.y) / 2f;
+        
+        // プレイヤーの高さ（Y座標）が真ん中より低ければ「下にいる」と判定
+        return player.transform.position.y < midY;
+    }
+
+    // ==========================================
     // IInteractable の実装
     // ==========================================
-
     public string GetInteractPrompt()
     {
-        // 潜水艦が操縦中（ソナーON）の時は、はしごを使えないようにする
-        if (SubmarineController.Instance != null && SubmarineController.Instance.isPiloting)
-        {
-            return ""; 
-        }
+        if (SubmarineController.Instance != null && SubmarineController.Instance.isPiloting) return "";
 
-        // 自分が上か下かによってプロンプトを変える
-        return type == LadderType.BottomToTop ? "昇る" : "降りる";
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+        if (player == null) return "";
+
+        // 自分が下にいるなら「昇る」、上にいるなら「降りる」を返す
+        return IsPlayerAtBottom(player) ? "昇る" : "降りる";
     }
 
     public void Interact()
     {
-        // 操縦中はインタラクトしても無視
         if (SubmarineController.Instance != null && SubmarineController.Instance.isPiloting) return;
 
-        if (destination == null)
+        if (topDestination == null || bottomDestination == null)
         {
-            Debug.LogError($"{gameObject.name} に目的地(Destination)が設定されていません！");
+            Debug.LogError($"{gameObject.name} に目的地が設定されていません！");
             return;
         }
 
-        // シーン内のプレイヤー（FindObjectOfTypeは重いので、本番はManagerから取得推奨）
         GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player == null) return;
 
-        // ★ワープ処理：プレイヤーの位置と向きを、目的地のTransformに瞬時に書き換える！
-        TeleportPlayer(player);
+        // 今いる位置に応じて、目標のワープ先を決める
+        Transform targetDest = IsPlayerAtBottom(player) ? topDestination : bottomDestination;
+
+        TeleportPlayer(player, targetDest);
     }
 
-    private void TeleportPlayer(GameObject player)
+    private void TeleportPlayer(GameObject player, Transform dest)
     {
-        // CharacterControllerがONだと移動が反映されないことがあるので、一時的にオフにする
         CharacterController cc = player.GetComponent<CharacterController>();
         if (cc != null) cc.enabled = false;
 
         // 位置をワープ
-        player.transform.position = destination.position;
+        player.transform.position = dest.position;
+        // 向きもワープ先（Destination）の向きに合わせる
+        player.transform.rotation = dest.rotation;
 
-        // 向きも合わせる（指定があれば）
-        if (lookAtTarget != null)
-        {
-            Vector3 lookPos = lookAtTarget.position;
-            lookPos.y = player.transform.position.y; // 上下は向かせない
-            player.transform.LookAt(lookPos);
-        }
-        else
-        {
-            // 指定がなければ目的地のRotationに合わせる
-            player.transform.rotation = destination.rotation;
-        }
-
-        // CharacterControllerを元に戻す
         if (cc != null) cc.enabled = true;
-
-        // 必要であれば、ここに「足音のSE」などを入れると自然になります
     }
 }

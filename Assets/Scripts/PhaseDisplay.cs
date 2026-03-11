@@ -23,6 +23,21 @@ public class PhaseDisplay : MonoBehaviour
         }
     }
 
+    void Update()
+    {
+        if (UIManager.Instance != null && tubeContainer != null)
+        {
+            // メニューが開いていない時だけ表示（開いていたら隠す）
+            bool shouldShow = !UIManager.Instance.isMenuOpen;
+            
+            // 状態が違う時だけ SetActive を切り替える（毎フレーム実行するのを防ぐため）
+            if (tubeContainer.gameObject.activeSelf != shouldShow)
+            {
+                tubeContainer.gameObject.SetActive(shouldShow);
+            }
+        }
+    }
+
     void UpdateText(GamePhase phase)
     {
         string displayText = "";

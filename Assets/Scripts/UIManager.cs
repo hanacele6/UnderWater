@@ -20,6 +20,8 @@ public class UIManager : MonoBehaviour
     [SerializeField] private GameObject inventoryPage;
     [SerializeField] private GameObject missionPage;
     [SerializeField] private MissionMenuUI missionUI;
+    [SerializeField] private GameObject menuButton;
+    [SerializeField] private GameObject dialoguePanel;
 
     [Header("Player Control")]
     [SerializeField] private PlayerInput playerInput;
@@ -49,7 +51,7 @@ public class UIManager : MonoBehaviour
 
     
 
-    private bool isMenuOpen = false;
+    public bool isMenuOpen = false;
     private Coroutine hideCoroutine;
     private Coroutine notificationCoroutine;
 
@@ -67,7 +69,7 @@ public class UIManager : MonoBehaviour
     {
         Instance = this;
         
-        // 最初は会話パネルを隠しておく
+        if (menuButton != null) menuButton.SetActive(false);
         //if (dialoguePanel != null) dialoguePanel.SetActive(false);
     }
 
@@ -198,13 +200,47 @@ public class UIManager : MonoBehaviour
         }
     }
 
+    // ==========================================
+    // 会話モードの切り替え
+    // ==========================================
+    public void SetDialogueMode(bool isActive)
+    {
+        if (isActive)
+        {
+            if (playerInput != null) playerInput.enabled = false;
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+            
+            SetInteractUIVisible(false); 
+
+            // ★追加：会話が始まったらメニューボタンを表示する！（ただしメニューが開いていない時だけ）
+            if (menuButton != null && !isMenuOpen) menuButton.SetActive(true);
+        }
+        else
+        {
+            if (!isMenuOpen)
+            {
+                if (playerInput != null) playerInput.enabled = true;
+                Cursor.lockState = CursorLockMode.Locked;
+                Cursor.visible = false;
+                
+                SetInteractUIVisible(true);
+            }
+
+            // ★追加：会話が終わったら必ずメニューボタンを隠す
+            if (menuButton != null) menuButton.SetActive(false);
+        }
+    }
+
+    // ==========================================
+    // メニューの開閉処理
+    // ==========================================
     public void ToggleMenu()
     {
         isMenuOpen = !isMenuOpen;
-        menuBackgroundPanel.SetActive(isMenuOpen);
+        if (menuBackgroundPanel != null) menuBackgroundPanel.SetActive(isMenuOpen);
 
         SetMainMissionPanelVisible(!isMenuOpen);
-
         SetInteractUIVisible(!isMenuOpen);
 
         if (isMenuOpen)
@@ -212,15 +248,48 @@ public class UIManager : MonoBehaviour
             HideMessage();
             OpenMainPage();
 
-            playerInput.enabled = false; 
+            if (playerInput != null) playerInput.enabled = false; 
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
+
+            if (menuButton != null) menuButton.SetActive(false);
+
+            // ==========================================
+            // ★追加：メニューを開いた時、会話ウィンドウを一時的に消す
+            // ==========================================
+            if (dialoguePanel != null) dialoguePanel.SetActive(false);
         }
         else
         {
-            playerInput.enabled = true;
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
+            // メニューを閉じた時
+            bool isTalking = (DialogueManager.Instance != null && DialogueManager.Instance.isTalking);
+
+            if (isTalking)
+            {
+                if (playerInput != null) playerInput.enabled = false;
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+                
+                if (menuButton != null) menuButton.SetActive(true);
+
+                // ==========================================
+                // ★追加：会話中なら、メニューを閉じた時に会話ウィンドウを復活させる
+                // ==========================================
+                if (dialoguePanel != null) dialoguePanel.SetActive(true);
+            }
+            else
+            {
+                if (playerInput != null) playerInput.enabled = true;
+                Cursor.lockState = CursorLockMode.Locked;
+                Cursor.visible = false;
+                
+                if (menuButton != null) menuButton.SetActive(false);
+
+                // ==========================================
+                // ★念のため：通常時は会話ウィンドウは出さない
+                // ==========================================
+                if (dialoguePanel != null) dialoguePanel.SetActive(false);
+            }
         }
     }
 
@@ -318,8 +387,11 @@ public class UIManager : MonoBehaviour
     {
         if (mainMissionPanel != null)
         {
+            bool hasValidText = !string.IsNullOrEmpty(mainMissionText.text) 
+                             && mainMissionText.text != "New Text" 
+                             && mainMissionText.text != "Text";
             // ただし「表示しろ」と言われても、目的のテキストが空っぽなら枠だけ出さないようにする
-            if (isVisible && !string.IsNullOrEmpty(mainMissionText.text))
+            if (isVisible && hasValidText)
             {
                 mainMissionPanel.SetActive(true);
             }

@@ -89,9 +89,22 @@ public class MissionMenuUI : MonoBehaviour
             
             GameObject newButton = Instantiate(missionButtonPrefab, targetContainer);
 
+            // ==========================================
+            // ★修正箇所：リスト内のフラグがすべてONかチェックする
+            // ==========================================
+            bool isCleared = true;
+            foreach (string flagName in mission.targetFlagNames)
+            {
+                if (!GameManager.Instance.GetFlag(flagName))
+                {
+                    isCleared = false;
+                    break;
+                }
+            }
+            if (mission.targetFlagNames.Count == 0) isCleared = false; // フラグが設定されていなければ未クリア扱い
+
             // テキストの設定（クリア済みなら取り消し線とグレーアウト）
             TextMeshProUGUI buttonText = newButton.GetComponentInChildren<TextMeshProUGUI>();
-            bool isCleared = GameManager.Instance.GetFlag(mission.targetFlagName);
 
             if (buttonText != null)
             {

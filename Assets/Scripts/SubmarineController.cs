@@ -15,21 +15,26 @@ public class SubmarineController : MonoBehaviour
     [System.Serializable]
     public struct EngineGear
     {
-        public string gearName;       // ギアの名前（例: "1速(微速)"）
-        public float maxSpeed;        // このギアでの最高速度
-        public float noiseMultiplier; // 音の大きさ（AIの感知半径にかかる倍率。0.3なら感知範囲が30%になる）
+        public string gearName;       // ギアの名前
+        public float maxSpeed;        // このギアでの最高速度（マイナスならバック）
+        public float noiseMultiplier; // 音の大きさ
     }
 
-    [Header("ギア一覧（0=停止, 1=1速, 2=2速...）")]
+    [Header("ギア一覧（0=後進, 1=停止, 2=1速...）")]
     public EngineGear[] gears = new EngineGear[]
     {
-        new EngineGear { gearName = "停止", maxSpeed = 0f, noiseMultiplier = 0.1f },  // ほぼ無音
-        new EngineGear { gearName = "1速 (静音)", maxSpeed = 2f, noiseMultiplier = 0.3f },  // ステルス（30%の距離までバレない）
-        new EngineGear { gearName = "2速 (巡航)", maxSpeed = 5f, noiseMultiplier = 1.0f },  // 通常
-        new EngineGear { gearName = "3速 (全速)", maxSpeed = 10f, noiseMultiplier = 2.0f }  // 爆音（通常の2倍遠くからバレる）
+        // ★ここを追加：マイナスの速度を持つ後進（リバース）ギア
+        new EngineGear { gearName = "後進 (リバース)", maxSpeed = -2f, noiseMultiplier = 0.5f }, 
+
+        // 以下は一つずつインデックスがずれます
+        new EngineGear { gearName = "停止", maxSpeed = 0f, noiseMultiplier = 0.1f }, 
+        new EngineGear { gearName = "1速 (静音)", maxSpeed = 2f, noiseMultiplier = 0.3f }, 
+        new EngineGear { gearName = "2速 (巡航)", maxSpeed = 5f, noiseMultiplier = 1.0f }, 
+        new EngineGear { gearName = "3速 (全速)", maxSpeed = 10f, noiseMultiplier = 2.0f } 
     };
 
-    public int currentGearIndex = 0;
+    // ★変更：最初は「停止」にしておきたいので、初期インデックスを『1』にする
+    public int currentGearIndex = 1;
 
     // AIが読み取るための「現在の騒音レベル」
     public float GetCurrentNoiseMultiplier()
@@ -45,49 +50,44 @@ public class SubmarineController : MonoBehaviour
         else Destroy(gameObject);
     }
     
-
     void Update()
     {
-        // ★ここが超重要：操縦中（ソナーを開いている時）でなければ、操作を一切受け付けない
         if (!isPiloting) return;
 
         // ==========================================
         // 1. ギアの切り替え操作（Wでアップ、Sでダウン）
         // ==========================================
+        // ※ここのロジックは一切変更しなくてOKです！
+        // Sキーを押せばインデックスが減り、最終的に「0（後進）」に入ります。
         if (Input.GetKeyDown(KeyCode.W)) 
         {
-            // シフトアップ：1足すが、最大ギア（gearsの数 - 1）以上にはならないようにする
             currentGearIndex = Mathf.Min(currentGearIndex + 1, gears.Length - 1);
         }
         else if (Input.GetKeyDown(KeyCode.S))
         {
-            // シフトダウン：1引くが、0（停止）未満にはならないようにする
             currentGearIndex = Mathf.Max(currentGearIndex - 1, 0);
         }
 
         // ==========================================
         // 2. 移動と旋回
         // ==========================================
-        // 現在のギアの最高速度に向かって、滑らかに加速・減速する
         float targetSpeed = gears[currentGearIndex].maxSpeed;
         currentSpeed = Mathf.Lerp(currentSpeed, targetSpeed, Time.deltaTime * acceleration);
 
-        // 常に前進し続ける（0速ならtargetSpeedが0なので自然と止まる）
+        // ★マイナスの速度の時は、Vector3.forward にマイナスが掛けられるので自動的に後ろに進みます！
         transform.Translate(Vector3.forward * currentSpeed * Time.deltaTime);
 
         // A/Dキーで旋回
+        // もし「バック中はハンドルの向きを逆にしたい（車の挙動）」場合は、ここを少し改造します
         if (Input.GetKey(KeyCode.A)) transform.Rotate(Vector3.up, -turnSpeed * Time.deltaTime);
         if (Input.GetKey(KeyCode.D)) transform.Rotate(Vector3.up, turnSpeed * Time.deltaTime);
     }
 
     private void ChangeGear(int gearLevel)
     {
-        // 設定されているギアの数を超えないようにする
         if (gearLevel >= 0 && gearLevel < gears.Length)
         {
             currentGearIndex = gearLevel;
-            // 必要であれば、ここに「UIのテキストを更新する」処理を入れると分かりやすいです
-            // 例: UIManager.Instance.ShowMessage($"エンジン: {gears[currentGearIndex].gearName}");
         }
     }
 }
