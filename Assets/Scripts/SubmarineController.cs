@@ -36,10 +36,19 @@ public class SubmarineController : MonoBehaviour
     // ★変更：最初は「停止」にしておきたいので、初期インデックスを『1』にする
     public int currentGearIndex = 1;
 
+    [Header("Stealth & Noise")]
+    [Tooltip("通常時（倍率1.0）の時に、敵にバレる基本の距離")]
+    public float baseNoiseRadius = 20f;
+
     // AIが読み取るための「現在の騒音レベル」
     public float GetCurrentNoiseMultiplier()
     {
         return gears[currentGearIndex].noiseMultiplier;
+    }
+
+    public float GetCurrentNoiseRadius()
+    {
+        return baseNoiseRadius * GetCurrentNoiseMultiplier();
     }
 
     public static SubmarineController Instance { get; private set; }

@@ -385,6 +385,11 @@ public class GameManager : MonoBehaviour
 
         if (existingFlag != null)
         {
+            // ==========================================
+            // すでに同じ状態（ONなのにONにしようとした等）なら、通知を出さずに即終了！
+            // ==========================================
+            if (existingFlag.isTrue == value) return;
+
             existingFlag.isTrue = value; 
         }
         else
@@ -394,9 +399,8 @@ public class GameManager : MonoBehaviour
         
         Debug.Log($"フラグ更新: {targetFlagName} = {value}");
 
-        // フラグが更新されたら、通知を出すかチェックする
+        // フラグが「新しく」更新された時だけ、通知とHUDのチェックを行う
         CheckMissionNotification(targetFlagName);
-
         UpdateMainMissionHUD();
     }
 

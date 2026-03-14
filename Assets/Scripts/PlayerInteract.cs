@@ -8,6 +8,7 @@ public class PlayerInteract : MonoBehaviour
     void Update()
     {
         Camera mainCamera = Camera.main;
+        if (mainCamera == null) return;
         Ray ray = mainCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
         RaycastHit hit;
 

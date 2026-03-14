@@ -4,7 +4,6 @@ using UnityEngine;
 public class BioAI : MonoBehaviour
 {
     [Header("AI Settings")]
-    [Tooltip("プレイヤーの潜水艦（自動で取得しますが、手動設定も可）")]
     public Transform player;
 
     [Header("AI State")]
@@ -13,31 +12,24 @@ public class BioAI : MonoBehaviour
     public float sprintSpeed = 5f;
     public float turnSpeed = 2f;
     
-    [Tooltip("本来のプレイヤーに気づく距離（この数値に、潜水艦の騒音倍率が掛けられます）")]
-    public float baseDetectionRadius = 30f; // ★名前を少し分かりやすく変更
-
-    [Header("Obstacle Avoidance (障害物回避)")]
+    [Header("Obstacle Avoidance")]
     public LayerMask wallLayer;
 
     private SonarTarget sonarTarget;
     private Vector3 wanderDestination;
     private float wanderTimer;
-
-    // ★追加：プレイヤーの騒音を取得するための参照
     private SubmarineController playerSubmarine; 
 
     void Start()
     {
         sonarTarget = GetComponent<SonarTarget>();
         
-        // プレイヤーが未設定の場合、自動取得する
         if (player == null)
         {
             SubmarineStatus sub = FindObjectOfType<SubmarineStatus>();
             if (sub != null) player = sub.transform;
         }
 
-        // ★追加：SubmarineControllerを取得しておく
         if (player != null)
         {
             playerSubmarine = player.GetComponent<SubmarineController>();
@@ -53,22 +45,15 @@ public class BioAI : MonoBehaviour
 
         float distanceToPlayer = Vector3.Distance(transform.position, player.position);
 
-        // ==========================================
-        // ★修正：プレイヤーの騒音レベルを考慮した感知距離の計算
-        // ==========================================
-        float currentDetectionRadius = baseDetectionRadius;
-
+        float currentNoiseRadius = 0f;
         if (playerSubmarine != null)
         {
-            // 潜水艦の現在のギアによる「騒音倍率（0.3など）」を掛ける！
-            currentDetectionRadius *= playerSubmarine.GetCurrentNoiseMultiplier();
+            currentNoiseRadius = playerSubmarine.GetCurrentNoiseRadius();
         }
 
-        // --- 状態の判定 ---
-        // 計算した結果の「現在の感知距離」より近づいてしまったらバレる！
-        if (distanceToPlayer <= currentDetectionRadius)
+        // 自分がその「騒音の円」の中に入ってしまったらバレる！
+        if (distanceToPlayer <= currentNoiseRadius)
         {
-            // プレイヤーを感知した！
             if (sonarTarget.targetType == SubmarineTargetType.HostileBio)
             {
                 MoveTowards(player.position, sprintSpeed);
@@ -81,14 +66,10 @@ public class BioAI : MonoBehaviour
         }
         else
         {
-            // 感知範囲外：のんびり徘徊する（Wander）
             Wander();
         }
     }
 
-    // ==========================================
-    // 行動ロジック（※以下は元のまま変更なし！）
-    // ==========================================
     private void Wander()
     {
         wanderTimer -= Time.deltaTime;
@@ -117,7 +98,8 @@ public class BioAI : MonoBehaviour
             direction.y = 0; 
             direction.Normalize();
 
-            if (Vector3.Distance(transform.position, player.position) > baseDetectionRadius)
+            // 壁にぶつかった時、プレイヤーの範囲外なら新しい場所へ
+            if (playerSubmarine != null && Vector3.Distance(transform.position, player.position) > playerSubmarine.GetCurrentNoiseRadius())
             {
                 SetNewWanderDestination();
             }

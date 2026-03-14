@@ -2,10 +2,10 @@ using UnityEngine;
 
 public enum ItemCategory
 {
-    Evidence,   // 証拠品（ストーリー進行に関わる貴重品）
-    Material,   // 素材・ジャンク（修理やクラフトに使うもの）
-    Consumable, // 消費アイテム（回復キットなど）
-    Other       // その他
+    Goods,      // 物品
+    Document,   // 文献
+    Material,   // 素材
+    Valuable    // 貴重品
 }
 
 // 右クリックメニューからこのデータを作成できるようにする魔法の1行

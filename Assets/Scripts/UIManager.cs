@@ -2,8 +2,9 @@ using UnityEngine;
 using TMPro;
 using UnityEngine.InputSystem;
 using System.Collections;
-using System.Collections.Generic; // Listを使うために追加
-using System;                     // Action（コールバック）を使うために追加
+using System.Collections.Generic; 
+using System;                     
+using UnityEngine.UI;
 
 public class UIManager : MonoBehaviour
 {
@@ -48,6 +49,12 @@ public class UIManager : MonoBehaviour
     //[SerializeField] private GameObject dialoguePanel;          // 会話ウィンドウ全体
     //[SerializeField] private TextMeshProUGUI speakerNameText;   // 話者名（「艦長」など）
     //[SerializeField] private TextMeshProUGUI dialogueMessageText; // セリフ本文
+
+    [Header("Item Pickup Popup UI")]
+    public GameObject itemPickupPanel;           // ポップアップ画面の親パネル
+    public TextMeshProUGUI itemPickupName;       // アイテム名
+    public TextMeshProUGUI itemPickupDescription;// 説明文
+    public Image itemPickupIcon;
 
     
 
@@ -100,6 +107,42 @@ public class UIManager : MonoBehaviour
         {
             HideMessage();
         }
+
+        if (itemPickupPanel != null && itemPickupPanel.activeSelf)
+        {
+            if (Input.GetMouseButtonDown(0))
+            {
+                itemPickupPanel.SetActive(false);
+                SetDialogueMode(false); // FPS操作に戻す
+            }
+            return; // ポップアップ中は他のUI操作（メニュー開閉など）を無視する
+        }
+    }
+
+    public void ShowItemPickupDetail(ItemData item)
+    {
+        if (itemPickupPanel == null) return;
+
+        if (itemPickupName != null) itemPickupName.text = item.itemName;
+        if (itemPickupDescription != null) itemPickupDescription.text = item.description;
+        
+        if (itemPickupIcon != null)
+        {
+            if (item.itemIcon != null)
+            {
+                itemPickupIcon.sprite = item.itemIcon;
+                itemPickupIcon.enabled = true;
+            }
+            else
+            {
+                itemPickupIcon.enabled = false;
+            }
+        }
+
+        itemPickupPanel.SetActive(true);
+
+        // 会話中と同じように、FPS操作を止めてカーソルを出す
+        SetDialogueMode(true); 
     }
 
     // ==========================================
@@ -439,5 +482,30 @@ public class UIManager : MonoBehaviour
         }
         fadeCanvasGroup.alpha = 0f;
         fadeCanvasGroup.gameObject.SetActive(false);
+    }
+
+    private void OnApplicationFocus(bool hasFocus)
+    {
+        // hasFocus が true ＝ ゲーム画面に戻ってきた瞬間
+        if (hasFocus)
+        {
+            // 今、会話中かどうかをチェック
+            bool isTalking = (DialogueManager.Instance != null && DialogueManager.Instance.isTalking);
+
+            // メニューが開いている、または会話中なら、カーソルを強制的に復活させる！
+            if (isMenuOpen || isTalking)
+            {
+                if (playerInput != null) playerInput.enabled = false;
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+            }
+            else
+            {
+                // 通常のプレイ中なら、カーソルを隠してFPS操作に戻す
+                if (playerInput != null) playerInput.enabled = true;
+                Cursor.lockState = CursorLockMode.Locked;
+                Cursor.visible = false;
+            }
+        }
     }
 }

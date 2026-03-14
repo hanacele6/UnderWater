@@ -10,6 +10,15 @@ public class SteeringConsole : MonoBehaviour, IInteractable
     [Tooltip("画面に表示するソナーパネル全体")]
     public GameObject sonarPanel; 
 
+    // --- 追加：カメラの参照 ---
+    [Header("カメラ設定")]
+    [Tooltip("普段のプレイヤー視点カメラ")]
+    public GameObject fpsCamera;
+    [Tooltip("潜水艦のモニター用カメラ")]
+    public GameObject submarineCamera;
+    [Tooltip("裏方のソナー撮影用カメラ")]
+    public GameObject sonarCamera;
+    // ------------------------
 
     private bool isPlayerPiloting = false;
 
@@ -18,6 +27,12 @@ public class SteeringConsole : MonoBehaviour, IInteractable
     {
         if (sonarPanel != null) sonarPanel.SetActive(false);
         SetAllBioAIActive(false); 
+
+        // --- 追加：ゲーム開始時はFPSカメラだけにする ---
+        if (fpsCamera != null) fpsCamera.SetActive(true);
+        if (submarineCamera != null) submarineCamera.SetActive(false);
+        if (sonarCamera != null) sonarCamera.SetActive(false);
+        // ---------------------------------------------
     }
 
     public string GetInteractPrompt()
@@ -44,9 +59,10 @@ public class SteeringConsole : MonoBehaviour, IInteractable
         playerInput.enabled = false; 
         submarine.isPiloting = true; 
 
-        if (UIManager.Instance.crosshair != null) 
+        // 変更：クロスヘアとインタラクト文字を両方まとめて消す
+        if (UIManager.Instance != null) 
         {
-            UIManager.Instance.crosshair.SetActive(false);
+            UIManager.Instance.SetInteractUIVisible(false);
         }
 
         if (DialogueManager.Instance != null)
@@ -57,8 +73,12 @@ public class SteeringConsole : MonoBehaviour, IInteractable
         if (sonarPanel != null) sonarPanel.SetActive(true);
         UIManager.Instance.canOpenMenu = false;
 
-        // 操縦を始めたら、海中の全生物が動き出す
         SetAllBioAIActive(true);
+
+        // --- カメラ切り替え ---
+        if (fpsCamera != null) fpsCamera.SetActive(false);
+        if (submarineCamera != null) submarineCamera.SetActive(true);
+        if (sonarCamera != null) sonarCamera.SetActive(true);
     }
 
     private void StopPiloting()
@@ -67,16 +87,21 @@ public class SteeringConsole : MonoBehaviour, IInteractable
         playerInput.enabled = true; 
         submarine.isPiloting = false; 
 
-        if (UIManager.Instance.crosshair != null) 
+        // 変更：クロスヘアとインタラクト文字を両方まとめて復活させる
+        if (UIManager.Instance != null) 
         {
-            UIManager.Instance.crosshair.SetActive(true);
+            UIManager.Instance.SetInteractUIVisible(true);
         }
         
         if (sonarPanel != null) sonarPanel.SetActive(false);
         UIManager.Instance.canOpenMenu = true;
 
-        // 操縦をやめたら、海中の全生物の時間が止まる
         SetAllBioAIActive(false);
+
+        // --- カメラ切り替え ---
+        if (fpsCamera != null) fpsCamera.SetActive(true);
+        if (submarineCamera != null) submarineCamera.SetActive(false);
+        if (sonarCamera != null) sonarCamera.SetActive(false);
     }
 
     // シーン内のすべてのBioAIを一括でON/OFFする便利メソッド

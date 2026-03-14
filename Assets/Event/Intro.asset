@@ -24,6 +24,10 @@ MonoBehaviour:
     speakerName: "\u30AB\u30F3\u30CA"
     portrait: {fileID: 0}
     text: "\u3053\u308C\u306F\u30C6\u30B9\u30C8\u3060\u3088"
+    fullScreenImage: {fileID: 0}
+    videoClip: {fileID: 0}
+    clearMedia: 0
+    waitVideoFinish: 0
     voicePitch: 0
     choices: []
     forceJumpLabel: 
@@ -31,6 +35,10 @@ MonoBehaviour:
     speakerName: "\u30AB\u30F3\u30CA2"
     portrait: {fileID: 0}
     text: "\u3053\u308C\u306F\u8CEA\u554F\u3067\u3059"
+    fullScreenImage: {fileID: 0}
+    videoClip: {fileID: 0}
+    clearMedia: 0
+    waitVideoFinish: 0
     voicePitch: 0
     choices:
     - choiceText: "\u306F\u3044"
@@ -44,6 +52,10 @@ MonoBehaviour:
     speakerName: "\u30AB\u30F3\u30CA"
     portrait: {fileID: 0}
     text: "\u306F\u3044\u306A\u3093\u3060\u306D"
+    fullScreenImage: {fileID: 0}
+    videoClip: {fileID: 0}
+    clearMedia: 1
+    waitVideoFinish: 0
     voicePitch: 0
     choices: []
     forceJumpLabel: END
@@ -51,6 +63,10 @@ MonoBehaviour:
     speakerName: "\u30AB\u30F3\u30CA2"
     portrait: {fileID: 0}
     text: "\u3044\u3044\u3048\u306A\u3093\u3060\u306D"
+    fullScreenImage: {fileID: 0}
+    videoClip: {fileID: 0}
+    clearMedia: 1
+    waitVideoFinish: 0
     voicePitch: 0
     choices: []
     forceJumpLabel: END

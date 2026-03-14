@@ -16,15 +16,14 @@ public class InventoryManager : MonoBehaviour
     public TextMeshProUGUI itemDetailText;
     public Image itemDetailIcon;
 
-    // ==========================================
-    // 現在開いているタブ（カテゴリ）を記憶する変数
-    // 初期値として「証拠品(Evidence)」を表示するようにしています
-    // ==========================================
-    private ItemCategory currentDisplayCategory = ItemCategory.Evidence; 
+    // ★変更：初期値を Goods（物品）に変更
+    private ItemCategory currentDisplayCategory = ItemCategory.Goods; 
 
     private void Awake()
     {
         Instance = this;
+
+        ClearItemDetail();
     }
 
     public void AddItem(ItemData newItem)
@@ -32,14 +31,16 @@ public class InventoryManager : MonoBehaviour
         inventoryList.Add(newItem);
         UpdateInventoryUI();
     }
-
-    // ==========================================
-    // UIの「タブボタン」から呼び出すためのメソッド群
-    // ==========================================
-    public void ChangeTabToEvidence()
+    public void ChangeTabToGoods()
     {
-        currentDisplayCategory = ItemCategory.Evidence;
-        UpdateInventoryUI(); // タブを変えたら画面を更新！
+        currentDisplayCategory = ItemCategory.Goods;
+        UpdateInventoryUI();
+    }
+
+    public void ChangeTabToDocument()
+    {
+        currentDisplayCategory = ItemCategory.Document;
+        UpdateInventoryUI();
     }
 
     public void ChangeTabToMaterial()
@@ -48,29 +49,23 @@ public class InventoryManager : MonoBehaviour
         UpdateInventoryUI();
     }
 
-    public void ChangeTabToConsumable()
+    public void ChangeTabToValuable()
     {
-        currentDisplayCategory = ItemCategory.Consumable;
+        currentDisplayCategory = ItemCategory.Valuable;
         UpdateInventoryUI();
     }
 
     public void UpdateInventoryUI()
     {
-        // 1. 今表示されている古いボタンを全部消す
         foreach (Transform child in contentParent)
         {
             Destroy(child.gameObject);
         }
 
-        // タブを切り替えた時は、右側の詳細画面も一旦空っぽにする
         ClearItemDetail(); 
 
-        // ==========================================
-        // 全部ではなく「今のカテゴリに合っているもの」だけを LINQ で抽出！
-        // ==========================================
         List<ItemData> displayItems = inventoryList.Where(item => item.category == currentDisplayCategory).ToList();
 
-        // 3. 抽出したアイテムだけでボタンを作る
         foreach (ItemData item in displayItems)
         {
             GameObject newButton = Instantiate(itemButtonPrefab, contentParent);
