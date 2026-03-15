@@ -109,6 +109,7 @@ public class GameManager : MonoBehaviour
         currentPhase = GamePhase.Briefing;
         lastPhase = currentPhase;
         OnPhaseChanged?.Invoke(currentPhase);
+        UpdateMainMissionHUD();
 
         // 2. 朝イチ（Briefing開始直後）に発生すべき台本がないかチェックする
         GameEventData morningEvent = CheckForPendingEvents(GamePhase.Briefing);
@@ -488,17 +489,22 @@ public class GameManager : MonoBehaviour
         [Tooltip("このフラグがONの時だけメニューに表示する（空欄なら条件なしで表示）")]
         public string requiredFlagToAppear;
 
-        [Header("ガイド設定")]
-        [Tooltip("目的地のオブジェクト（空欄ならガイドを表示しません）")]
+        [Header("ガイド設定（1人称視点用）")]
+        [Tooltip("1人称時の目的地（操舵輪やドアなど。空欄ならガイドなし）")]
         public Transform targetLocation;
 
-        [Header("ソナー設定")]
-        [Tooltip("チェックを入れると、潜水艦のソナー画面にマーカーと波紋が出ます")]
+        [Header("ソナー設定（潜水艦視点用）")]
+        [Tooltip("チェックを入れると、潜水艦のソナー画面にマーカーが出ます")]
         public bool showOnSonar = false;
+        
+        [Tooltip("ソナーに表示する実際の目的地（岩や沈没船など）")]
+        public Transform sonarTargetLocation;
     }
 
     [Header("現在のミッション一覧")]
     public List<MissionObjective> missionList = new List<MissionObjective>();
+
+    
 
 
     // ==========================================
@@ -508,58 +514,78 @@ public class GameManager : MonoBehaviour
     {
         if (UIManager.Instance == null) return;
 
+        List<SonarManager.MissionSonarData> activeSonarTargets = new List<SonarManager.MissionSonarData>(); 
+        string mainQuestText = "";
+        
+        string missionListDisplay = "<color=#88FF88>【アクティブな任務】</color>\n";
+        int activeCount = 0;
+
         foreach (var mission in missionList)
         {
+            // ① クリア済みかどうかの判定
             bool isCleared = true;
-
-            // リストに登録されたフラグを1つずつ確認
             foreach (string flagName in mission.targetFlagNames)
             {
-                if (!GetFlag(flagName)) 
-                {
-                    isCleared = false; // 1つでもOFF（達成していない）なら、未クリア！
-                    break;             // チェックを打ち切る
-                }
+                if (!GetFlag(flagName)) { isCleared = false; break; }
             }
-
             if (mission.targetFlagNames.Count == 0) isCleared = false;
 
+            // ② フラグによる出現条件
             bool isAppearFlagSet = string.IsNullOrEmpty(mission.requiredFlagToAppear) || GetFlag(mission.requiredFlagToAppear);
 
-            if (mission.isMainObjective && !isCleared && isAppearFlagSet)
+            // ==========================================
+            // ③ ★追加：日数とフェーズによる出現条件をチェック！
+            // ==========================================
+            bool isTimeMet = true;
+            if (mission.appearDay > 0)
             {
-                UIManager.Instance.UpdateMainMission(mission.displayText);
-                
-                // フワフワ図形マーカー（既存）
-                if (MissionGuide.Instance != null) MissionGuide.Instance.SetTarget(mission.targetLocation);
-                
-                // ==========================================
-                // スイッチがONの時だけソナーに目的地を渡す！
-                // ==========================================
-                if (SonarManager.Instance != null)
+                // まだその日になっていない場合
+                if (currentDay < mission.appearDay) isTimeMet = false;
+                // 日数は同じだが、まだ指定されたフェーズになっていない場合
+                else if (currentDay == mission.appearDay && currentPhase < mission.appearPhase) isTimeMet = false;
+            }
+            else
+            {
+                // 日数指定が0（いつでも）でも、フェーズの指定は守る
+                if (currentPhase < mission.appearPhase) isTimeMet = false;
+            }
+
+            // ★すべての条件（未クリア ＋ フラグON ＋ 時間到達）を満たしている場合のみ表示する
+            if (!isCleared && isAppearFlagSet && isTimeMet)
+            {
+                if (mission.showOnSonar && mission.sonarTargetLocation != null)
                 {
-                    if (mission.showOnSonar)
-                    {
-                        // 潜水艦用のミッションならソナーに教える
-                        SonarManager.Instance.SetMissionTarget(mission.targetLocation);
-                    }
-                    else
-                    {
-                        // 1人称用のミッションならソナーのターゲットは空（null）にして消す
-                        SonarManager.Instance.SetMissionTarget(null);
-                    }
+                    activeSonarTargets.Add(new SonarManager.MissionSonarData {
+                        target = mission.sonarTargetLocation,
+                        name = mission.displayText
+                    });
                 }
-                
-                return; // 表示できたらここで終了
+
+                if (mission.showOnSonar)
+                {
+                    string typeLabel = mission.isMainObjective ? "[MAIN]" : "[SUB]";
+                    missionListDisplay += $"{typeLabel} {mission.displayText}\n";
+                    activeCount++;
+                }
+
+                if (mission.isMainObjective && string.IsNullOrEmpty(mainQuestText))
+                {
+                    mainQuestText = mission.displayText;
+                    if (MissionGuide.Instance != null) MissionGuide.Instance.SetTarget(mission.targetLocation);
+                }
             }
         }
 
-        // 該当ミッションがない場合の処理
-        UIManager.Instance.UpdateMainMission(""); 
-        if (MissionGuide.Instance != null) MissionGuide.Instance.SetTarget(null);
-        if (SonarManager.Instance != null) SonarManager.Instance.SetMissionTarget(null);
-    }
+        if (activeCount == 0) missionListDisplay += "現在、指示されている任務はありません。";
 
+        UIManager.Instance.UpdateMainMission(mainQuestText); 
+        
+        if (SonarManager.Instance != null)
+            SonarManager.Instance.SetMissionTargets(activeSonarTargets);
+
+        if (SubmarineHUD.Instance != null)
+            SubmarineHUD.Instance.UpdateMissionListText(missionListDisplay);
+    }
 
     public void GoToNextDay()
     {

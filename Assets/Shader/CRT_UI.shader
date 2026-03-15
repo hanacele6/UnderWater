@@ -78,12 +78,18 @@ Shader "Custom/CRT_UI_Advanced"
                 uv.x += rollBand * _RollAmount * sin(_Time.y * 50.0); 
 
                 // 3. 色収差
-                fixed r = tex2D(_MainTex, uv + float2(_RGBShift, 0)).r;
-                fixed g = tex2D(_MainTex, uv).g;
-                fixed b = tex2D(_MainTex, uv - float2(_RGBShift, 0)).b;
-                fixed a = tex2D(_MainTex, uv).a; 
-
-                fixed4 color = fixed4(r, g, b, a) * i.color;
+                fixed4 texCol;
+                if (_RGBShift > 0.0001) {
+                    fixed r = tex2D(_MainTex, uv + float2(_RGBShift, 0)).r;
+                    fixed g = tex2D(_MainTex, uv).g;
+                    fixed b = tex2D(_MainTex, uv - float2(_RGBShift, 0)).b;
+                    fixed a = tex2D(_MainTex, uv).a;
+                    texCol = fixed4(r, g, b, a);
+                } else {
+                    // シフトが0なら普通に1回読む（これでボケが最小限になる）
+                    texCol = tex2D(_MainTex, uv);
+                }
+                fixed4 color = texCol * i.color;
 
                 // 4. 走査線 ＋ 通過中の帯を暗くする
                 float scanline = sin(uv.y * 800.0) * 0.05 * _Scanline;

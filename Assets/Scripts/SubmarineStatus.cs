@@ -20,39 +20,38 @@ public class SubmarineStatus : MonoBehaviour
     private Vector3 lastPosition;
     private float lastYRotation;
 
+    private Rigidbody rb; 
+
     void Start()
     {
-        // 最初の位置と角度を記憶
-        lastPosition = transform.position;
+        // 最初の角度を記憶
         lastYRotation = transform.eulerAngles.y;
+        
+        rb = GetComponentInParent<Rigidbody>(); 
     }
 
     void Update()
     {
         // =====================================
-        // 1. スピードメーター（速度の計算）
+        // 1. スピードメーター（Rigidbodyから直接取得してブレを消す！）
         // =====================================
-        // 1フレームでどれだけ移動したか（距離）を計算
-        float distance = Vector3.Distance(transform.position, lastPosition);
-        // 距離 ÷ 時間 で「秒速」を出す（ノット風にするなら数値を掛けて調整してください）
-        float targetSpeed = distance / Time.deltaTime;
-        
-        // 数値がガクガク震えないように、Lerpで滑らかに変化させる
-        currentSpeed = Mathf.Lerp(currentSpeed, targetSpeed, Time.deltaTime * 5f);
-        
-        lastPosition = transform.position; // 記憶を更新
+        if (rb != null)
+        {
+            // magnitude（ベクトルの長さ）を取得することで、物理エンジンが計算した
+            // 「正確で全くブレない速度（絶対値）」をそのままUIに表示できます。
+            currentSpeed = rb.linearVelocity.magnitude; 
+        }
 
         // =====================================
-        // 2. 旋回メーター（旋回速度の計算）
+        // 2. 旋回メーター（Updateで回転させているのでそのままでOK）
         // =====================================
         float currentY = transform.eulerAngles.y;
-        // DeltaAngleを使うと、359度→0度を跨いだ時も正しく「1度動いた」と計算してくれます
         float angleDelta = Mathf.DeltaAngle(lastYRotation, currentY);
         
         float targetTurnRate = angleDelta / Time.deltaTime;
         currentTurnRate = Mathf.Lerp(currentTurnRate, Mathf.Abs(targetTurnRate), Time.deltaTime * 5f);
         
-        lastYRotation = currentY; // 記憶を更新
+        lastYRotation = currentY; 
     }
 
     public void TakeDamage(float damage)

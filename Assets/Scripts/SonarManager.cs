@@ -12,11 +12,12 @@ public class SonarManager : MonoBehaviour
 
     public RectTransform compassRing;
     public Transform[] compassLabels;
+    public RectTransform submarineOutlineMarker;
 
     [Header("Information Display")]
     public SubmarineStatus subStatus;        
     public TMPro.TMP_Text statusDisplayText;
-    public GameObject blipPrefab;
+    public GameObject fixedBlipPrefab;
 
     [Header("Sonar Settings")]
     public float pulseScanSpeed = 30f; 
@@ -24,13 +25,43 @@ public class SonarManager : MonoBehaviour
     public float sonarRange = 50f;
     private float radarUIRadius;
     public LayerMask wallLayer; 
+    public LayerMask targetLayer;
 
     [Header("Echo Visuals (Texture)")]
     public int textureSize = 512;
-    // ★復活：元のスキャン解像度（0.5で細かく滑らかに描画）
     public float scanResolution = 0.5f; 
-    public Gradient shadowGradient;
     public byte fadeSpeed = 3;
+
+    [Header("Barotrauma Sonar Settings")]
+    public bool isRealtimeTracking = true;
+    public bool penetrateWalls = true; 
+    [Range(0f, 1f)] public float innerWallDensity = 0.4f;
+    public float innerWallNoiseScale = 0.1f;
+    public int baseBlobRadius = 4;
+    public float textureUpdateInterval = 0.05f;
+    private float textureUpdateTimer = 0f;
+
+    [Header("Wall Visuals (壁・地形の見た目)")]
+    [Tooltip("壁用のグラデーション。時間が経つと色が緩やかに揺らぎます")]
+    public Gradient wallGradient;
+    [Tooltip("壁の中の光の大きさ")]
+    public float innerWallEchoSizeMin = 0.4f;
+    public float innerWallEchoSizeMax = 0.8f;
+    [Tooltip("壁の中の光の明るさ")]
+    public float innerWallIntensityMin = 0.1f;
+    public float innerWallIntensityMax = 0.3f;
+    [Tooltip("壁の色の揺らぐスピード")]
+    public float wallColorJitterSpeed = 0.5f;
+
+    [Header("Biological Target Visuals (生物の見た目)")]
+    [Tooltip("生物用のグラデーション。色が不気味に激しく揺らぎます")]
+    public Gradient bioGradient;
+    [Tooltip("生物の光の大きさ")]
+    public float bioEchoSizeMin = 1.5f;
+    public float bioEchoSizeMax = 2.5f;
+    [Tooltip("色の揺らぐスピード")]
+    public float bioColorJitterSpeedMin = 5f;
+    public float bioColorJitterSpeedMax = 15f;
 
     [Header("Mission Navigation")]
     public RectTransform missionMarker;
@@ -58,18 +89,65 @@ public class SonarManager : MonoBehaviour
     private float missionPulseAlpha = 0f; 
 
     private List<SonarTarget> targets = new List<SonarTarget>();
-    private List<GameObject> blips = new List<GameObject>();
+    private List<GameObject> fixedBlips = new List<GameObject>();
     
     private float currentPulseDistance = 0f; 
     private float prevPulseDistance = 0f;
-
     private int rayCount;
-    private float[] wallDistances;
-    private bool[] wallHit;
 
     private Texture2D sonarTexture;
     private Color32[] pixelBuffer; 
     private int centerPixel;
+
+    private class EchoPoint
+    {
+        public Vector3 worldPos;
+        public float distance;
+        public float intensity;
+        public float staticPx;
+        public float staticPy;
+        public float proceduralSize = 1f;
+        public Gradient targetGradient; // ★使用するグラデーションへの参照
+        public float colorBaseT = 1f;
+        public float colorJitterSpeed = 0f;
+        public bool isBiological = false;
+    }
+
+    [System.Serializable]
+    public struct MissionSonarData {
+        public Transform target;
+        public string name;
+    }
+
+    private class ActiveMissionUI
+    {
+        public MissionSonarData data;
+        public RectTransform marker;
+        public UIRing pulseRing;
+        public float pulseTimer;
+        public float pulseAlpha;
+        public TMPro.TMP_Text text; 
+    }
+    private List<ActiveMissionUI> activeMissions = new List<ActiveMissionUI>();
+
+    [Header("Structure Navigation")]
+    [Tooltip("ストラクチャー用のUIプレハブ（ImageとTMP_Textを含むもの）")]
+    public RectTransform structureMarkerPrefab;
+    public RectTransform missionMarkerPrefab;
+    public float structureScanRadius = 150f;
+    public float structureScanInterval = 1.0f;
+    private float structureScanTimer = 0f;
+
+    private class ActiveStructureUI
+    {
+        public StructureMarker data;
+        public RectTransform marker;
+        public TMPro.TMP_Text text;
+    }
+    private List<ActiveStructureUI> activeStructures = new List<ActiveStructureUI>();
+
+    private List<EchoPoint> pendingEchoes = new List<EchoPoint>();
+    private List<EchoPoint> activeEchoes = new List<EchoPoint>();
 
     void Awake() { Instance = this; }
 
@@ -78,60 +156,46 @@ public class SonarManager : MonoBehaviour
         RectTransform rt = sonarDisplayImage.GetComponent<RectTransform>();
         radarUIRadius = rt.rect.width / 2f;
 
-        // 解像度に基づいて配列を初期化（scanResolution = 0.5 なら 720本のレイ）
         rayCount = Mathf.Max(1, Mathf.CeilToInt(360f / scanResolution));
-        wallDistances = new float[rayCount];
-        wallHit = new bool[rayCount];
 
         mainPulseRing = CreateAutoRing("Auto_MainPulseRing", mainPulseColor, 2f, false);
         noiseRangeCircle = CreateAutoRing("Auto_NoiseRangeCircle", noiseRangeColor, 0f, true); 
-        missionPulseRing = CreateAutoRing("Auto_MissionPulseRing", missionPulseColor, 2f, false);
+        //missionPulseRing = CreateAutoRing("Auto_MissionPulseRing", missionPulseColor, 2f, false);
+        if (missionMarker != null) missionMarker.gameObject.SetActive(false);
 
         SonarTarget[] foundTargets = FindObjectsOfType<SonarTarget>();
         foreach (SonarTarget target in foundTargets)
         {
             targets.Add(target);
-            GameObject newBlip = Instantiate(blipPrefab, radarCenter);
-            newBlip.SetActive(false);
-
-            Image blipImage = newBlip.GetComponent<Image>();
-            TMPro.TextMeshProUGUI blipText = newBlip.GetComponentInChildren<TMPro.TextMeshProUGUI>(); 
-
-            if (blipImage != null)
+            if (target.targetShape == SonarTargetShape.UI_Prefab)
             {
-                if (blipText != null) blipText.gameObject.SetActive(false);
-                switch (target.targetType)
-                {
-                    case SubmarineTargetType.Mine: blipImage.color = Color.red; break;
-                    case SubmarineTargetType.HostileBio: blipImage.color = new Color(1f, 0.4f, 0f); break;
-                    case SubmarineTargetType.NeutralBio: blipImage.color = Color.cyan; break;
-                    case SubmarineTargetType.Item: blipImage.color = Color.yellow; break;
-                    case SubmarineTargetType.Objective:
-                        blipImage.color = new Color(0f, 1f, 0f, 0.4f); 
-                        float uiSize = Mathf.Max((target.areaRadius / sonarRange) * 300f, 30f);
-                        newBlip.GetComponent<RectTransform>().sizeDelta = new Vector2(uiSize, uiSize); 
-                        if (blipText != null && !string.IsNullOrEmpty(target.targetLabel))
-                        {
-                            blipText.gameObject.SetActive(true);
-                            blipText.text = target.targetLabel;
-                            blipText.color = Color.green; 
-                        }
-                        break;
-                }
+                GameObject newBlip = Instantiate(fixedBlipPrefab, radarCenter);
+                newBlip.SetActive(false);
+                SetupBlipUI(newBlip, target);
+                fixedBlips.Add(newBlip);
             }
-            blips.Add(newBlip);
+            else if (target.targetShape == SonarTargetShape.AlwaysVisible_Marker)
+            {
+                GameObject newBlip = Instantiate(missionMarkerPrefab.gameObject, radarCenter);
+                newBlip.SetActive(true);
+                fixedBlips.Add(newBlip);
+            }
+            else
+            {
+                fixedBlips.Add(null); 
+            }
         }
 
         sonarTexture = new Texture2D(textureSize, textureSize, TextureFormat.RGBA32, false);
         pixelBuffer = new Color32[textureSize * textureSize];
-        Color32 clearColor = new Color32(0, 0, 0, 0);
-        for (int i = 0; i < pixelBuffer.Length; i++) pixelBuffer[i] = clearColor;
+        System.Array.Clear(pixelBuffer, 0, pixelBuffer.Length);
         sonarTexture.SetPixels32(pixelBuffer);
         sonarTexture.Apply();
         sonarDisplayImage.texture = sonarTexture;
         centerPixel = textureSize / 2;
 
         if (missionMarker != null) missionMarker.gameObject.SetActive(false);
+        if (submarineOutlineMarker != null) submarineOutlineMarker.gameObject.SetActive(true);
         missionPulseAlpha = 0f;
 
         TriggerSonarPing(); 
@@ -157,17 +221,65 @@ public class SonarManager : MonoBehaviour
         return ring;
     }
 
-    public void SetMissionTarget(Transform target)
+    private void SetupBlipUI(GameObject blipObj, SonarTarget target)
     {
-        currentMissionTarget = target;
-        if (missionMarker != null) missionMarker.gameObject.SetActive(target != null);
+        Image blipImage = blipObj.GetComponent<Image>();
+        TMPro.TextMeshProUGUI blipText = blipObj.GetComponentInChildren<TMPro.TextMeshProUGUI>(); 
 
-        if (target == null && missionPulseRing != null)
+        if (blipImage != null)
         {
-            missionPulseAlpha = 0f;
-            Color c = missionPulseRing.color;
-            c.a = 0f;
-            missionPulseRing.color = c;
+            if (blipText != null) blipText.gameObject.SetActive(false);
+            switch (target.targetType)
+            {
+                case SubmarineTargetType.Mine: blipImage.color = Color.red; break;
+                case SubmarineTargetType.HostileBio: blipImage.color = new Color(1f, 0.4f, 0f); break;
+                case SubmarineTargetType.NeutralBio: blipImage.color = Color.cyan; break;
+                case SubmarineTargetType.Item: blipImage.color = Color.yellow; break;
+                case SubmarineTargetType.Objective:
+                    blipImage.color = new Color(0f, 1f, 0f, 0.4f); 
+                    float uiSize = Mathf.Max((target.areaRadius / sonarRange) * 300f, 30f);
+                    blipObj.GetComponent<RectTransform>().sizeDelta = new Vector2(uiSize, uiSize); 
+                    if (blipText != null && !string.IsNullOrEmpty(target.targetLabel))
+                    {
+                        blipText.gameObject.SetActive(true);
+                        blipText.text = target.targetLabel;
+                        blipText.color = Color.green; 
+                    }
+                    break;
+            }
+        }
+    }
+
+    public void SetMissionTargets(List<MissionSonarData> targets)
+    {
+        for (int i = activeMissions.Count - 1; i >= 0; i--)
+        {
+            if (!targets.Exists(t => t.target == activeMissions[i].data.target))
+            {
+                if (activeMissions[i].marker != null) Destroy(activeMissions[i].marker.gameObject);
+                if (activeMissions[i].pulseRing != null) Destroy(activeMissions[i].pulseRing.gameObject);
+                activeMissions.RemoveAt(i);
+            }
+        }
+
+        foreach (var t in targets)
+        {
+            if (!activeMissions.Exists(m => m.data.target == t.target))
+            {
+                GameObject newMarkerObj = Instantiate(missionMarkerPrefab.gameObject, radarCenter);
+                newMarkerObj.SetActive(true);
+
+                UIRing newRing = CreateAutoRing("Auto_MissionPulseRing", missionPulseColor, 2f, false);
+
+                activeMissions.Add(new ActiveMissionUI {
+                    data = t,
+                    marker = newMarkerObj.GetComponent<RectTransform>(),
+                    pulseRing = newRing,
+                    pulseTimer = 0f,
+                    pulseAlpha = 0f,
+                    text = newMarkerObj.GetComponentInChildren<TMPro.TMP_Text>() // ★テキストを取得
+                });
+            }
         }
     }
 
@@ -176,10 +288,41 @@ public class SonarManager : MonoBehaviour
         if (player == null) return;
 
         UpdateNoiseRing();
-        FadeOutPixels();
+
+        structureScanTimer -= Time.deltaTime;
+        if (structureScanTimer <= 0f) { ScanNearbyStructures(); structureScanTimer = structureScanInterval; }
+        UpdateStructureMarkers();
 
         prevPulseDistance = currentPulseDistance;
         currentPulseDistance += pulseScanSpeed * Time.deltaTime;
+
+        for (int i = pendingEchoes.Count - 1; i >= 0; i--)
+        {
+            if (pendingEchoes[i].distance <= currentPulseDistance)
+            {
+                EchoPoint echo = pendingEchoes[i];
+                if (!isRealtimeTracking)
+                {
+                    Vector3 relativePos = echo.worldPos - player.position;
+                    float angle = Mathf.Atan2(relativePos.x, relativePos.z) * Mathf.Rad2Deg;
+                    angle -= player.eulerAngles.y; 
+                    
+                    float uiR = (echo.distance / sonarRange) * centerPixel;
+                    float rad = angle * Mathf.Deg2Rad;
+                    echo.staticPx = centerPixel + Mathf.Sin(rad) * uiR;
+                    echo.staticPy = centerPixel + Mathf.Cos(rad) * uiR;
+                }
+                activeEchoes.Add(echo);
+                pendingEchoes.RemoveAt(i);
+            }
+        }
+
+        textureUpdateTimer += Time.deltaTime;
+        if (textureUpdateTimer >= textureUpdateInterval)
+        {
+            DrawBarotraumaEchoes();
+            textureUpdateTimer = 0f;
+        }
 
         if (mainPulseRing != null)
         {
@@ -191,7 +334,6 @@ public class SonarManager : MonoBehaviour
             mainPulseRing.color = c;
         }
 
-        DrawPulseEchoes();
         UpdateBlips();
 
         if (currentPulseDistance >= sonarRange) TriggerSonarPing();
@@ -213,69 +355,198 @@ public class SonarManager : MonoBehaviour
         if (mainPulseRing != null) mainPulseRing.rectTransform.sizeDelta = Vector2.zero;
         if (sonarAudioSource != null && pingSound != null) sonarAudioSource.PlayOneShot(pingSound, 1.0f);
 
+        pendingEchoes.Clear();
+
         for (int i = 0; i < rayCount; i++)
         {
             float angleDeg = i * scanResolution;
             float angleRad = angleDeg * Mathf.Deg2Rad;
-            Vector3 direction = new Vector3(Mathf.Sin(angleRad), 0, Mathf.Cos(angleRad));
-            direction = Quaternion.Euler(0, player.eulerAngles.y, 0) * direction;
+            Vector3 direction = Quaternion.Euler(0, angleDeg + player.eulerAngles.y, 0) * Vector3.forward;
             Vector3 rayOrigin = player.position + new Vector3(0, 1.0f, 0);
 
-            if (Physics.Raycast(rayOrigin, direction, out RaycastHit hit, sonarRange, wallLayer))
+            if (penetrateWalls)
             {
-                wallHit[i] = true;
-                wallDistances[i] = hit.distance;
-            }
-            else wallHit[i] = false;
-        }
-    }
+                List<float> rawBoundaries = new List<float>();
 
-    
-    private void DrawPulseEchoes()
-    {
-        bool textureUpdated = false;
+                RaycastHit[] hits = Physics.RaycastAll(rayOrigin, direction, sonarRange, wallLayer);
+                foreach (var hit in hits) rawBoundaries.Add(hit.distance);
 
-        for (int i = 0; i < rayCount; i++)
-        {
-            if (wallHit[i] && wallDistances[i] > prevPulseDistance && wallDistances[i] <= currentPulseDistance)
-            {
-                float r0 = (wallDistances[i] / sonarRange) * centerPixel;
-                float maxR = centerPixel;
-                
-                float angleDeg = i * scanResolution;
-                float angleRad = angleDeg * Mathf.Deg2Rad;
-
-                for (float radius = r0; radius < maxR; radius += 0.5f)
+                Vector3 reverseOrigin = rayOrigin + (direction * sonarRange);
+                Vector3 reverseDirection = -direction;
+                RaycastHit[] reverseHits = Physics.RaycastAll(reverseOrigin, reverseDirection, sonarRange, wallLayer);
+                foreach (var hit in reverseHits)
                 {
-                    float t = (radius - r0) / (maxR - r0);
-                    Color32 drawColor = shadowGradient.Evaluate(t);
+                    float distFromPlayer = sonarRange - hit.distance;
+                    if (distFromPlayer > 0 && distFromPlayer <= sonarRange) rawBoundaries.Add(distFromPlayer);
+                }
 
-                    int px = Mathf.RoundToInt(centerPixel + Mathf.Sin(angleRad) * radius);
-                    int py = Mathf.RoundToInt(centerPixel + Mathf.Cos(angleRad) * radius);
+                rawBoundaries.Sort();
 
-                    if (px >= 0 && px < textureSize && py >= 0 && py < textureSize)
+                List<float> wallBoundaries = new List<float>();
+                if (rawBoundaries.Count > 0)
+                {
+                    wallBoundaries.Add(rawBoundaries[0]);
+                    for (int j = 1; j < rawBoundaries.Count; j++)
                     {
-                        pixelBuffer[py * textureSize + px] = drawColor;
-                        textureUpdated = true;
+                        if (rawBoundaries[j] - wallBoundaries[wallBoundaries.Count - 1] > 0.5f)
+                        {
+                            wallBoundaries.Add(rawBoundaries[j]);
+                        }
+                    }
+                }
+
+                foreach (float d in wallBoundaries)
+                {
+                    Vector3 pos = rayOrigin + direction * d;
+                    // 壁：wallGradientを割り当て、揺らぎ速度を設定
+                    pendingEchoes.Add(new EchoPoint { 
+                        worldPos = pos, 
+                        distance = d, 
+                        intensity = 1.0f,
+                        targetGradient = wallGradient,
+                        colorBaseT = 1.0f, // グラデーションの右端(1.0)を基準にする
+                        colorJitterSpeed = wallColorJitterSpeed
+                    });
+                }
+
+                for (int j = 0; j < wallBoundaries.Count - 1; j += 2)
+                {
+                    float startDist = wallBoundaries[j];
+                    float endDist = wallBoundaries[j + 1];
+
+                    for (float d = startDist + 1.0f; d < endDist - 0.5f; d += 1.5f)
+                    {
+                        Vector3 pos = rayOrigin + direction * d;
+                        float noise = Mathf.PerlinNoise(pos.x * innerWallNoiseScale, pos.z * innerWallNoiseScale);
+
+                        if (noise < innerWallDensity)
+                        {
+                            pendingEchoes.Add(new EchoPoint {
+                                worldPos = pos,
+                                distance = d,
+                                intensity = Random.Range(innerWallIntensityMin, innerWallIntensityMax),
+                                proceduralSize = Random.Range(innerWallEchoSizeMin, innerWallEchoSizeMax),
+                                targetGradient = wallGradient,
+                                colorBaseT = 1.0f,
+                                colorJitterSpeed = wallColorJitterSpeed
+                            });
+                        }
                     }
                 }
             }
-        }
-
-        if (textureUpdated)
-        {
-            sonarTexture.SetPixels32(pixelBuffer);
-            sonarTexture.Apply();
+            else
+            {
+                if (Physics.Raycast(rayOrigin, direction, out RaycastHit hit, sonarRange, wallLayer))
+                {
+                    pendingEchoes.Add(new EchoPoint { worldPos = hit.point, distance = hit.distance, intensity = 1.0f, targetGradient = wallGradient });
+                }
+            }
         }
     }
 
-    private void FadeOutPixels()
+    private void DrawBarotraumaEchoes()
     {
-        for (int i = 0; i < pixelBuffer.Length; i++)
+        System.Array.Clear(pixelBuffer, 0, pixelBuffer.Length);
+
+        for (int i = activeEchoes.Count - 1; i >= 0; i--)
         {
-            if (pixelBuffer[i].a > 0)
+            EchoPoint echo = activeEchoes[i];
+            
+            echo.intensity -= (fadeSpeed / 255f) * textureUpdateInterval * 60f;
+            if (echo.intensity <= 0)
             {
-                pixelBuffer[i].a = (byte)Mathf.Max(0, pixelBuffer[i].a - fadeSpeed);
+                activeEchoes.RemoveAt(i);
+                continue;
+            }
+
+            float px, py;
+            if (isRealtimeTracking)
+            {
+                Vector3 relativePos = echo.worldPos - player.position;
+                float angle = Mathf.Atan2(relativePos.x, relativePos.z) * Mathf.Rad2Deg - player.eulerAngles.y;
+                float dist = new Vector2(relativePos.x, relativePos.z).magnitude;
+                
+                if (dist > sonarRange) continue; 
+
+                float uiR = (dist / sonarRange) * centerPixel;
+                float rad = angle * Mathf.Deg2Rad;
+                px = centerPixel + Mathf.Sin(rad) * uiR;
+                py = centerPixel + Mathf.Cos(rad) * uiR;
+            }
+            else
+            {
+                px = echo.staticPx;
+                py = echo.staticPy;
+            }
+
+            Color baseColor;
+            float t;
+            if (echo.isBiological)
+            {
+                // 生物の場合は、基準色を中心に激しくブルブル揺れる
+                t = echo.colorBaseT + Mathf.Sin(Time.time * echo.colorJitterSpeed) * 0.1f;
+            }
+            else
+            {
+                // 壁の場合は、PingPongを使ってグラデーション全体(0〜1)をゆっくり行ったり来たりする！
+                t = Mathf.PingPong(Time.time * echo.colorJitterSpeed, 1f);
+            }
+            if (echo.targetGradient != null)
+            {
+                baseColor = echo.targetGradient.Evaluate(Mathf.Clamp01(t));
+            }
+            else 
+            {
+                // 万が一グラデーションが割り当たっていない場合の安全策
+                baseColor = Color.white; 
+            }
+
+            DrawBlobAdditive(px, py, echo.intensity, echo.proceduralSize, baseColor);
+        }
+
+        sonarTexture.SetPixels32(pixelBuffer);
+        sonarTexture.Apply();
+    }
+
+    private void DrawBlobAdditive(float cx, float cy, float intensity, float sizeMultiplier, Color baseColor)
+    {
+        int centerX = Mathf.RoundToInt(cx);
+        int centerY = Mathf.RoundToInt(cy);
+
+        DrawSingleBlobPass(centerX, centerY, baseColor, 1.0f, baseBlobRadius * 0.5f * sizeMultiplier, intensity); 
+        DrawSingleBlobPass(centerX, centerY, baseColor, 0.4f, baseBlobRadius * 1.5f * sizeMultiplier, intensity); 
+        DrawSingleBlobPass(centerX, centerY, baseColor, 0.2f, baseBlobRadius * 3.0f * sizeMultiplier, intensity); 
+    }
+
+    private void DrawSingleBlobPass(int cx, int cy, Color col, float maxAlpha, float radius, float intensity)
+    {
+        int r = Mathf.RoundToInt(radius);
+        byte baseR = (byte)(col.r * 255);
+        byte baseG = (byte)(col.g * 255);
+        byte baseB = (byte)(col.b * 255);
+
+        for (int y = -r; y <= r; y++)
+        {
+            for (int x = -r; x <= r; x++)
+            {
+                float dist = Mathf.Sqrt(x * x + y * y);
+                if (dist <= radius)
+                {
+                    int px = cx + x;
+                    int py = cy + y;
+                    
+                    if (px >= 0 && px < textureSize && py >= 0 && py < textureSize)
+                    {
+                        float alphaRaw = (1f - (dist / radius)) * maxAlpha;
+                        byte alphaToAdd = (byte)(alphaRaw * intensity * 255);
+
+                        int index = py * textureSize + px;
+                        Color32 current = pixelBuffer[index];
+
+                        byte newAlpha = (byte)Mathf.Min(255, current.a + alphaToAdd);
+                        pixelBuffer[index] = new Color32(baseR, baseG, baseB, newAlpha);
+                    }
+                }
             }
         }
     }
@@ -300,102 +571,188 @@ public class SonarManager : MonoBehaviour
         {
             if (targets[i] == null || !targets[i].enabled || !targets[i].gameObject.activeInHierarchy)
             {
-                if (blips[i] != null && blips[i].activeSelf) blips[i].SetActive(false);
+                if (fixedBlips[i] != null && fixedBlips[i].activeSelf) fixedBlips[i].SetActive(false);
                 continue; 
             }
 
             Vector3 relativePos = targets[i].transform.position - player.position;
             float distance = new Vector2(relativePos.x, relativePos.z).magnitude;
 
+            // ==========================================
+            // ★1. 常に表示するマーカー（ミッション・ストラクチャー等）の処理
+            // ==========================================
+            // 距離に関係なく、ソナー範囲外でも円周に張り付かせて表示し続ける
+            if (targets[i].targetShape == SonarTargetShape.AlwaysVisible_Marker)
+            {
+                fixedBlips[i].SetActive(true);
+
+                float angle = Mathf.Atan2(relativePos.x, relativePos.z) * Mathf.Rad2Deg;
+                angle -= player.eulerAngles.y;
+                float angleRad = angle * Mathf.Deg2Rad;
+
+                float distanceRatio = Mathf.Clamp01(distance / sonarRange);
+                float uiX = Mathf.Sin(angleRad) * distanceRatio * radarUIRadius;
+                float uiY = Mathf.Cos(angleRad) * distanceRatio * radarUIRadius;
+
+                fixedBlips[i].transform.localPosition = new Vector3(uiX, uiY, 0);
+                fixedBlips[i].transform.localEulerAngles = Vector3.zero;
+
+                TMPro.TMP_Text textCmp = fixedBlips[i].GetComponentInChildren<TMPro.TMP_Text>();
+                if (textCmp != null)
+                {
+                    string colorTag = distance > sonarRange ? "<color=#888888>" : "<color=#FFFFFF>";
+                    textCmp.text = $"{colorTag}{targets[i].targetLabel}\n<size=70%>{distance:F0}m</size></color>";
+                }
+                continue; // 以下のパルス処理は行わない
+            }
+
+            // ==========================================
+            // ★2. 通常のパルスで光るターゲット（生物・アイテム等）の処理
+            // ==========================================
+            // これらはソナー範囲内 (distance <= sonarRange) にいる時だけ処理する
             if (distance <= sonarRange)
             {
-                UnityEngine.UI.Image blipImage = blips[i].GetComponent<UnityEngine.UI.Image>();
+                bool isHitByPulse = (distance > prevPulseDistance && distance <= currentPulseDistance);
 
-                if (distance > prevPulseDistance && distance <= currentPulseDistance) 
+                // 【不定形ターゲット（生物）】
+                if (targets[i].targetShape == SonarTargetShape.Procedural_Texture)
                 {
-                    blips[i].SetActive(true);
+                    if (isHitByPulse)
+                    {
+                        float angle = Mathf.Atan2(relativePos.x, relativePos.z) * Mathf.Rad2Deg - player.eulerAngles.y;
+                        float uiR = (distance / sonarRange) * centerPixel;
+                        float rad = angle * Mathf.Deg2Rad;
+                        
+                        activeEchoes.Add(new EchoPoint {
+                            worldPos = targets[i].transform.position,
+                            distance = distance,
+                            intensity = 1.0f,
+                            proceduralSize = Random.Range(bioEchoSizeMin, bioEchoSizeMax),
+                            staticPx = centerPixel + Mathf.Sin(rad) * uiR,
+                            staticPy = centerPixel + Mathf.Cos(rad) * uiR,
+                            isBiological = true,
+                            targetGradient = bioGradient,
+                            colorBaseT = Random.Range(0.1f, 0.9f),
+                            colorJitterSpeed = Random.Range(bioColorJitterSpeedMin, bioColorJitterSpeedMax)
+                        });
+                    }
+                    continue; 
+                }
+
+                // 【固定UIターゲット（アイテム・機雷等）】
+                UnityEngine.UI.Image blipImage = fixedBlips[i].GetComponent<UnityEngine.UI.Image>();
+
+                if (isHitByPulse) 
+                {
+                    fixedBlips[i].SetActive(true);
                     if (blipImage != null)
                     {
                         Color c = blipImage.color;
                         c.a = 1f; 
                         blipImage.color = c;
                     }
-
-                    float angle = Mathf.Atan2(relativePos.x, relativePos.z) * Mathf.Rad2Deg;
-                    angle -= player.eulerAngles.y;
-                    float distanceRatio = distance / sonarRange;
-                    float angleRad = angle * Mathf.Deg2Rad;
-                    float uiX = Mathf.Sin(angleRad) * distanceRatio * radarUIRadius;
-                    float uiY = Mathf.Cos(angleRad) * distanceRatio * radarUIRadius;
-                    blips[i].transform.localPosition = new Vector3(uiX, uiY, 0);
                 }
 
-                if (blips[i].activeSelf && blipImage != null)
+                if (fixedBlips[i].activeSelf)
                 {
-                    Color c = blipImage.color;
-                    c.a -= Time.deltaTime * 0.5f; 
-                    blipImage.color = c;
-                    if (c.a <= 0f) blips[i].SetActive(false);
+                    if (blipImage != null)
+                    {
+                        Color c = blipImage.color;
+                        c.a -= Time.deltaTime * 0.5f; 
+                        blipImage.color = c;
+                        if (c.a <= 0f) fixedBlips[i].SetActive(false);
+                    }
+
+                    if (isRealtimeTracking || isHitByPulse)
+                    {
+                        float angle = Mathf.Atan2(relativePos.x, relativePos.z) * Mathf.Rad2Deg;
+                        angle -= player.eulerAngles.y;
+                        float distanceRatio = distance / sonarRange;
+                        float angleRad = angle * Mathf.Deg2Rad;
+                        float uiX = Mathf.Sin(angleRad) * distanceRatio * radarUIRadius;
+                        float uiY = Mathf.Cos(angleRad) * distanceRatio * radarUIRadius;
+                        fixedBlips[i].transform.localPosition = new Vector3(uiX, uiY, 0);
+                    }
                 }
             }
-            else blips[i].SetActive(false); 
+            else
+            {
+                // ソナー範囲外なら非表示にする（※AlwaysVisible_Marker以外）
+                if (fixedBlips[i] != null) fixedBlips[i].SetActive(false); 
+            }
         }
     }
+
 
     private void UpdateMissionNavigation()
     {
-        if (currentMissionTarget == null || missionMarker == null) return;
-
-        Vector3 dir = currentMissionTarget.position - player.position;
-        float targetAngle = Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg;
-        float relativeAngle = targetAngle - player.eulerAngles.y;
-        float angleRad = relativeAngle * Mathf.Deg2Rad;
-
-        float markerX = Mathf.Sin(angleRad) * radarUIRadius;
-        float markerY = Mathf.Cos(angleRad) * radarUIRadius;
-        
-        missionMarker.localPosition = new Vector3(markerX, markerY, 0);
-        missionMarker.localEulerAngles = new Vector3(0, 0, -relativeAngle);
-
-        float distance = new Vector2(dir.x, dir.z).magnitude;
-        
-        if (distance <= pulseTriggerDistance)
+        foreach (var mission in activeMissions)
         {
-            missionPulseTimer += Time.deltaTime;
-            float currentInterval = Mathf.Lerp(0.3f, missionPulseInterval, distance / pulseTriggerDistance);
+            if (mission.data.target == null) continue;
 
-            if (missionPulseTimer >= currentInterval)
+            Vector3 dir = mission.data.target.position - player.position;
+            float distance = new Vector2(dir.x, dir.z).magnitude;
+
+            float targetAngle = Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg;
+            float relativeAngle = targetAngle - player.eulerAngles.y;
+            float angleRad = relativeAngle * Mathf.Deg2Rad;
+
+            // ==========================================
+            // ★UI位置の計算（距離をClamp01で制限し、常に円周内に留める）
+            // ==========================================
+            float distanceRatio = Mathf.Clamp01(distance / sonarRange);
+            float uiX = Mathf.Sin(angleRad) * distanceRatio * radarUIRadius;
+            float uiY = Mathf.Cos(angleRad) * distanceRatio * radarUIRadius;
+            
+            mission.marker.localPosition = new Vector3(uiX, uiY, 0);
+            mission.marker.localEulerAngles = Vector3.zero; // 回転させず常に正立させる
+
+            if (mission.text != null)
             {
-                missionPulseTimer = 0f;
-                float distanceRatio = Mathf.Clamp01(distance / sonarRange);
-                float uiX = Mathf.Sin(angleRad) * distanceRatio * radarUIRadius;
-                float uiY = Mathf.Cos(angleRad) * distanceRatio * radarUIRadius;
+                // ソナー外の時は少し暗い色にするなどの演出
+                string colorTag = distance > sonarRange ? "<color=#AAAAAA>" : "<color=#FFD700>";
+                mission.text.text = $"{colorTag}{mission.data.name}\n<size=70%>{distance:F0}m</size></color>";
+            }
 
-                if (missionPulseRing != null)
-                {
-                    missionPulseRing.rectTransform.localPosition = new Vector3(uiX, uiY, 0); 
-                    missionPulseRing.rectTransform.sizeDelta = Vector2.zero; 
-                    missionPulseAlpha = 1f; 
-                }
+            // ==========================================
+            // パルスリングの処理
+            // ==========================================
+            if (distance <= pulseTriggerDistance)
+            {
+                mission.pulseTimer += Time.deltaTime;
+                float currentInterval = Mathf.Lerp(0.3f, missionPulseInterval, distance / pulseTriggerDistance);
 
-                if (sonarAudioSource != null && pulseSound != null)
+                if (mission.pulseTimer >= currentInterval)
                 {
-                    sonarAudioSource.PlayOneShot(pulseSound, 0.7f);
+                    mission.pulseTimer = 0f;
+
+                    if (mission.pulseRing != null)
+                    {
+                        mission.pulseRing.rectTransform.localPosition = new Vector3(uiX, uiY, 0); 
+                        mission.pulseRing.rectTransform.sizeDelta = Vector2.zero; 
+                        mission.pulseAlpha = 1f; 
+                    }
+
+                    if (sonarAudioSource != null && pulseSound != null)
+                    {
+                        sonarAudioSource.PlayOneShot(pulseSound, 0.7f);
+                    }
                 }
             }
-        }
 
-        if (missionPulseRing != null && missionPulseAlpha > 0f)
-        {
-            missionPulseRing.rectTransform.sizeDelta += new Vector2(pulseExpandSpeed, pulseExpandSpeed) * Time.deltaTime;
-            missionPulseAlpha -= pulseFadeSpeed * Time.deltaTime;
+            if (mission.pulseRing != null && mission.pulseAlpha > 0f)
+            {
+                mission.pulseRing.rectTransform.sizeDelta += new Vector2(pulseExpandSpeed, pulseExpandSpeed) * Time.deltaTime;
+                mission.pulseAlpha -= pulseFadeSpeed * Time.deltaTime;
 
-            Color c = missionPulseRing.color;
-            c.a = Mathf.Max(0f, missionPulseAlpha);
-            missionPulseRing.color = c;
+                Color c = mission.pulseRing.color;
+                c.a = Mathf.Max(0f, mission.pulseAlpha);
+                mission.pulseRing.color = c;
+            }
         }
     }
 
+    
     private void UpdateStatusDisplay()
     {
         if (subStatus != null && statusDisplayText != null)
@@ -413,9 +770,80 @@ public class SonarManager : MonoBehaviour
                 $"HEADING    : {heading:F0}°";
         }
     }
+
+    private void ScanNearbyStructures()
+    {
+        if (structureMarkerPrefab == null) return;
+
+        StructureMarker[] markers = FindObjectsOfType<StructureMarker>();
+        List<StructureMarker> nearbyMarkers = new List<StructureMarker>();
+
+        // ソナー範囲内のストラクチャーをリストアップ
+        foreach (var m in markers)
+        {
+            if (Vector3.Distance(player.position, m.transform.position) <= structureScanRadius) 
+                nearbyMarkers.Add(m);
+        }
+
+        // 範囲外になった古いUIを削除
+        for (int i = activeStructures.Count - 1; i >= 0; i--)
+        {
+            if (!nearbyMarkers.Contains(activeStructures[i].data))
+            {
+                if (activeStructures[i].marker != null) Destroy(activeStructures[i].marker.gameObject);
+                activeStructures.RemoveAt(i);
+            }
+        }
+
+        // 新しいUIを追加
+        foreach (var m in nearbyMarkers)
+        {
+            if (!activeStructures.Exists(s => s.data == m))
+            {
+                GameObject newObj = Instantiate(structureMarkerPrefab.gameObject, radarCenter);
+                newObj.SetActive(true);
+                activeStructures.Add(new ActiveStructureUI {
+                    data = m,
+                    marker = newObj.GetComponent<RectTransform>(),
+                    text = newObj.GetComponentInChildren<TMPro.TMP_Text>()
+                });
+            }
+        }
+    }
+
+    private void UpdateStructureMarkers()
+    {
+        foreach (var s in activeStructures)
+        {
+            if (s.data == null) continue;
+
+            Vector3 dir = s.data.transform.position - player.position;
+            float distance = new Vector2(dir.x, dir.z).magnitude;
+
+            s.marker.gameObject.SetActive(true);
+
+            float targetAngle = Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg;
+            float relativeAngle = targetAngle - player.eulerAngles.y;
+            float angleRad = relativeAngle * Mathf.Deg2Rad;
+
+            float distanceRatio = Mathf.Clamp01(distance / sonarRange);
+            
+            float uiX = Mathf.Sin(angleRad) * distanceRatio * radarUIRadius;
+            float uiY = Mathf.Cos(angleRad) * distanceRatio * radarUIRadius;
+
+            s.marker.localPosition = new Vector3(uiX, uiY, 0);
+            s.marker.localEulerAngles = Vector3.zero; 
+
+            if (s.text != null)
+            {
+                // （おまけ）ソナー外にいる時は、文字を少し暗くして区別することも可能です
+                string colorTag = distance > sonarRange ? "<color=#888888>" : "<color=#FFFFFF>";
+                s.text.text = $"{colorTag}{s.data.structureName}\n<size=70%>{distance:F0}m</size></color>";
+            }
+        }
+    }
 }
 
-// UIRingクラスはそのまま（変更なし）
 [RequireComponent(typeof(CanvasRenderer))]
 public class UIRing : MaskableGraphic
 {

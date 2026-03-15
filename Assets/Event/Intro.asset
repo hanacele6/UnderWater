@@ -71,5 +71,5 @@ MonoBehaviour:
     choices: []
     forceJumpLabel: END
   targetStageID: Control Room
-  nextPhaseAfterEvent: 0
+  nextPhaseAfterEvent: 1
   setFlagOnComplete: TestQuest

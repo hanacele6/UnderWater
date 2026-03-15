@@ -1,5 +1,6 @@
 using UnityEngine;
-using UnityEngine.InputSystem; 
+using UnityEngine.InputSystem;
+using UnityEngine.Rendering.Universal;
 
 public class SteeringConsole : MonoBehaviour, IInteractable
 {
@@ -10,7 +11,7 @@ public class SteeringConsole : MonoBehaviour, IInteractable
     [Tooltip("画面に表示するソナーパネル全体")]
     public GameObject sonarPanel; 
 
-    // --- 追加：カメラの参照 ---
+    // --- カメラの参照 ---
     [Header("カメラ設定")]
     [Tooltip("普段のプレイヤー視点カメラ")]
     public GameObject fpsCamera;
@@ -19,6 +20,10 @@ public class SteeringConsole : MonoBehaviour, IInteractable
     [Tooltip("裏方のソナー撮影用カメラ")]
     public GameObject sonarCamera;
     // ------------------------
+
+    [Header("URP設定")]
+    [Tooltip("現在使用しているURP Assetを入れてください")]
+    public UniversalRenderPipelineAsset urpAsset;
 
     private bool isPlayerPiloting = false;
 
@@ -79,6 +84,11 @@ public class SteeringConsole : MonoBehaviour, IInteractable
         if (fpsCamera != null) fpsCamera.SetActive(false);
         if (submarineCamera != null) submarineCamera.SetActive(true);
         if (sonarCamera != null) sonarCamera.SetActive(true);
+
+        if (urpAsset != null)
+        {
+            urpAsset.renderScale = 1.0f;
+        }
     }
 
     private void StopPiloting()
@@ -102,6 +112,11 @@ public class SteeringConsole : MonoBehaviour, IInteractable
         if (fpsCamera != null) fpsCamera.SetActive(true);
         if (submarineCamera != null) submarineCamera.SetActive(false);
         if (sonarCamera != null) sonarCamera.SetActive(false);
+
+        if (urpAsset != null)
+        {
+            urpAsset.renderScale = 0.5f;
+        }
     }
 
     // シーン内のすべてのBioAIを一括でON/OFFする便利メソッド

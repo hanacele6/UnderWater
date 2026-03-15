@@ -94,7 +94,7 @@ Material:
     - _Cutoff: 0.5
     - _DetailAlbedoMapScale: 1
     - _DetailNormalMapScale: 1
-    - _Distortion: 0
+    - _Distortion: 0.077
     - _DstBlend: 0
     - _DstBlendAlpha: 0
     - _EnvironmentReflections: 1
@@ -110,7 +110,7 @@ Material:
     - _RollAmount: 0.0008
     - _RollSpeed: 1.37
     - _RollThickness: 410
-    - _Scanline: 0.078
+    - _Scanline: 0.092
     - _ScrollSpeed: 0.2
     - _Smoothness: 0.5
     - _SmoothnessTextureChannel: 0
