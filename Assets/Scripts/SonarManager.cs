@@ -174,12 +174,7 @@ public class SonarManager : MonoBehaviour
                 SetupBlipUI(newBlip, target);
                 fixedBlips.Add(newBlip);
             }
-            else if (target.targetShape == SonarTargetShape.AlwaysVisible_Marker)
-            {
-                GameObject newBlip = Instantiate(missionMarkerPrefab.gameObject, radarCenter);
-                newBlip.SetActive(true);
-                fixedBlips.Add(newBlip);
-            }
+            
             else
             {
                 fixedBlips.Add(null); 
@@ -235,17 +230,7 @@ public class SonarManager : MonoBehaviour
                 case SubmarineTargetType.HostileBio: blipImage.color = new Color(1f, 0.4f, 0f); break;
                 case SubmarineTargetType.NeutralBio: blipImage.color = Color.cyan; break;
                 case SubmarineTargetType.Item: blipImage.color = Color.yellow; break;
-                case SubmarineTargetType.Objective:
-                    blipImage.color = new Color(0f, 1f, 0f, 0.4f); 
-                    float uiSize = Mathf.Max((target.areaRadius / sonarRange) * 300f, 30f);
-                    blipObj.GetComponent<RectTransform>().sizeDelta = new Vector2(uiSize, uiSize); 
-                    if (blipText != null && !string.IsNullOrEmpty(target.targetLabel))
-                    {
-                        blipText.gameObject.SetActive(true);
-                        blipText.text = target.targetLabel;
-                        blipText.color = Color.green; 
-                    }
-                    break;
+                
             }
         }
     }
@@ -579,35 +564,7 @@ public class SonarManager : MonoBehaviour
             float distance = new Vector2(relativePos.x, relativePos.z).magnitude;
 
             // ==========================================
-            // ★1. 常に表示するマーカー（ミッション・ストラクチャー等）の処理
-            // ==========================================
-            // 距離に関係なく、ソナー範囲外でも円周に張り付かせて表示し続ける
-            if (targets[i].targetShape == SonarTargetShape.AlwaysVisible_Marker)
-            {
-                fixedBlips[i].SetActive(true);
-
-                float angle = Mathf.Atan2(relativePos.x, relativePos.z) * Mathf.Rad2Deg;
-                angle -= player.eulerAngles.y;
-                float angleRad = angle * Mathf.Deg2Rad;
-
-                float distanceRatio = Mathf.Clamp01(distance / sonarRange);
-                float uiX = Mathf.Sin(angleRad) * distanceRatio * radarUIRadius;
-                float uiY = Mathf.Cos(angleRad) * distanceRatio * radarUIRadius;
-
-                fixedBlips[i].transform.localPosition = new Vector3(uiX, uiY, 0);
-                fixedBlips[i].transform.localEulerAngles = Vector3.zero;
-
-                TMPro.TMP_Text textCmp = fixedBlips[i].GetComponentInChildren<TMPro.TMP_Text>();
-                if (textCmp != null)
-                {
-                    string colorTag = distance > sonarRange ? "<color=#888888>" : "<color=#FFFFFF>";
-                    textCmp.text = $"{colorTag}{targets[i].targetLabel}\n<size=70%>{distance:F0}m</size></color>";
-                }
-                continue; // 以下のパルス処理は行わない
-            }
-
-            // ==========================================
-            // ★2. 通常のパルスで光るターゲット（生物・アイテム等）の処理
+            // 通常のパルスで光るターゲット（生物・アイテム等）の処理
             // ==========================================
             // これらはソナー範囲内 (distance <= sonarRange) にいる時だけ処理する
             if (distance <= sonarRange)
