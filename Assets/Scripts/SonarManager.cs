@@ -32,6 +32,13 @@ public class SonarManager : MonoBehaviour
     public float scanResolution = 0.5f; 
     public byte fadeSpeed = 3;
 
+    [Tooltip("光のにじみの広がり具合（0にするとくっきり）")]
+    public float echoBloomSpread = 2.5f;
+    [Tooltip("にじみの強さ（透明度）")]
+    public float echoBloomIntensity = 0.3f;
+    [Tooltip("壁の中の点を判定する間隔（小さいほど点が増える）")]
+    public float innerWallStepSize = 0.5f;
+
     [Header("Barotrauma Sonar Settings")]
     public bool isRealtimeTracking = true;
     public bool penetrateWalls = true; 
@@ -111,6 +118,15 @@ public class SonarManager : MonoBehaviour
         public float colorBaseT = 1f;
         public float colorJitterSpeed = 0f;
         public bool isBiological = false;
+        public bool isInteriorNoise = false;
+    }
+
+    // In/Outを判別するための構造体
+    struct WallHit : System.IComparable<WallHit> 
+    {
+        public float distance;
+        public bool isEntry; // trueなら表面(In)、falseなら裏面(Out)
+        public int CompareTo(WallHit other) => distance.CompareTo(other.distance);
     }
 
     [System.Serializable]
@@ -332,6 +348,8 @@ public class SonarManager : MonoBehaviour
         UpdateMissionNavigation();
     }
 
+    
+
     private void TriggerSonarPing()
     {
         currentPulseDistance = 0f;
@@ -350,58 +368,101 @@ public class SonarManager : MonoBehaviour
             Vector3 rayOrigin = player.position + new Vector3(0, 1.0f, 0);
 
             if (penetrateWalls)
-            {
-                List<float> rawBoundaries = new List<float>();
+            {                
+                List<WallHit> hitList = new List<WallHit>();
 
+                // 1. 前方へのレイキャスト（表面＝Entryを取得）
                 RaycastHit[] hits = Physics.RaycastAll(rayOrigin, direction, sonarRange, wallLayer);
-                foreach (var hit in hits) rawBoundaries.Add(hit.distance);
+                foreach (var hit in hits) hitList.Add(new WallHit { distance = hit.distance, isEntry = true });
 
+                // 2. 後方からの逆レイキャスト（裏面＝Exitを取得）
                 Vector3 reverseOrigin = rayOrigin + (direction * sonarRange);
                 Vector3 reverseDirection = -direction;
                 RaycastHit[] reverseHits = Physics.RaycastAll(reverseOrigin, reverseDirection, sonarRange, wallLayer);
                 foreach (var hit in reverseHits)
                 {
                     float distFromPlayer = sonarRange - hit.distance;
-                    if (distFromPlayer > 0 && distFromPlayer <= sonarRange) rawBoundaries.Add(distFromPlayer);
-                }
-
-                rawBoundaries.Sort();
-
-                List<float> wallBoundaries = new List<float>();
-                if (rawBoundaries.Count > 0)
-                {
-                    wallBoundaries.Add(rawBoundaries[0]);
-                    for (int j = 1; j < rawBoundaries.Count; j++)
+                    if (distFromPlayer > 0 && distFromPlayer <= sonarRange)
                     {
-                        if (rawBoundaries[j] - wallBoundaries[wallBoundaries.Count - 1] > 0.5f)
-                        {
-                            wallBoundaries.Add(rawBoundaries[j]);
-                        }
+                        hitList.Add(new WallHit { distance = distFromPlayer, isEntry = false });
                     }
                 }
 
-                foreach (float d in wallBoundaries)
+                // 距離順に並び替え
+                hitList.Sort();
+
+                List<float> outlineBoundaries = new List<float>();
+                List<Vector2> solidRanges = new List<Vector2>();
+
+                int insideCount = 0;
+                float currentStart = -1f;
+
+                // 3. カウント方式で重なりをマージする
+                foreach (var h in hitList)
+                {
+                    if (h.isEntry)
+                    {
+                        if (insideCount == 0)
+                        {
+                            currentStart = h.distance;
+                            outlineBoundaries.Add(h.distance); // 完全に外側にある「表面」だけ輪郭にする
+                        }
+                        insideCount++;
+                    }
+                    else
+                    {
+                        insideCount = Mathf.Max(0, insideCount - 1); // 0未満にならないようフェールセーフ
+                        if (insideCount == 0 && currentStart != -1f)
+                        {
+                            outlineBoundaries.Add(h.distance); // 完全に外に出た「裏面」だけ輪郭にする
+                            solidRanges.Add(new Vector2(currentStart, h.distance));
+                            currentStart = -1f;
+                        }
+                    }
+                }
+                if (insideCount > 0 && currentStart != -1f)
+                {
+                    solidRanges.Add(new Vector2(currentStart, sonarRange));
+                }
+
+                // --- 描画キューへの登録 ---
+
+                // 外枠（くっきりした線）の登録
+                // 光りすぎるのを防ぐため、intensityを 1.0f から少し下げます（例: 0.7f）
+                foreach (float d in outlineBoundaries)
                 {
                     Vector3 pos = rayOrigin + direction * d;
-                    // 壁：wallGradientを割り当て、揺らぎ速度を設定
                     pendingEchoes.Add(new EchoPoint { 
                         worldPos = pos, 
                         distance = d, 
-                        intensity = 1.0f,
+                        intensity = 0.7f, 
                         targetGradient = wallGradient,
-                        colorBaseT = 1.0f, // グラデーションの右端(1.0)を基準にする
+                        colorBaseT = 1.0f, 
                         colorJitterSpeed = wallColorJitterSpeed
                     });
                 }
 
-                for (int j = 0; j < wallBoundaries.Count - 1; j += 2)
+                // 内部のモヤモヤ（ノイズ）の登録
+                foreach (Vector2 range in solidRanges)
                 {
-                    float startDist = wallBoundaries[j];
-                    float endDist = wallBoundaries[j + 1];
+                    float startDist = range.x;
+                    float endDist = range.y;
 
-                    for (float d = startDist + 1.0f; d < endDist - 0.5f; d += 1.5f)
+                    float maxDepth = 30.0f; 
+                    float actualEndDist = Mathf.Min(endDist - 0.1f, startDist + maxDepth);
+
+                    // 進行方向に対して真横(90度)のベクトル
+                    Vector3 perpDir = new Vector3(-direction.z, 0, direction.x);
+
+                    float safeStepSize = Mathf.Max(1.5f, innerWallStepSize);
+
+                    for (float d = startDist + 0.1f; d < actualEndDist; d += safeStepSize)
                     {
-                        Vector3 pos = rayOrigin + direction * d;
+                        if (Random.value > 0.5f) continue;
+
+                        float lateralOffset = Random.Range(-safeStepSize, safeStepSize);
+                        Vector3 pos = rayOrigin + direction * d + (perpDir * lateralOffset);
+                        
                         float noise = Mathf.PerlinNoise(pos.x * innerWallNoiseScale, pos.z * innerWallNoiseScale);
 
                         if (noise < innerWallDensity)
@@ -409,11 +470,13 @@ public class SonarManager : MonoBehaviour
                             pendingEchoes.Add(new EchoPoint {
                                 worldPos = pos,
                                 distance = d,
-                                intensity = Random.Range(innerWallIntensityMin, innerWallIntensityMax),
-                                proceduralSize = Random.Range(innerWallEchoSizeMin, innerWallEchoSizeMax),
+                                intensity = Random.Range(innerWallIntensityMin, innerWallIntensityMax), 
+                                proceduralSize = Random.Range(innerWallEchoSizeMin, innerWallEchoSizeMax) ,
                                 targetGradient = wallGradient,
                                 colorBaseT = 1.0f,
-                                colorJitterSpeed = wallColorJitterSpeed
+                                colorJitterSpeed = wallColorJitterSpeed,
+                                isBiological = false,
+                                isInteriorNoise = true 
                             });
                         }
                     }
@@ -486,21 +549,39 @@ public class SonarManager : MonoBehaviour
                 baseColor = Color.white; 
             }
 
-            DrawBlobAdditive(px, py, echo.intensity, echo.proceduralSize, baseColor);
+            DrawBlobAdditive(px, py, echo.intensity, echo.proceduralSize, baseColor, echo.isBiological, echo.isInteriorNoise);
         }
 
         sonarTexture.SetPixels32(pixelBuffer);
         sonarTexture.Apply();
     }
 
-    private void DrawBlobAdditive(float cx, float cy, float intensity, float sizeMultiplier, Color baseColor)
+    private void DrawBlobAdditive(float cx, float cy, float intensity, float sizeMultiplier, Color baseColor, bool isBiological, bool isInteriorNoise = false)
     {
         int centerX = Mathf.RoundToInt(cx);
         int centerY = Mathf.RoundToInt(cy);
 
+        if (isInteriorNoise)
+        {
+            DrawSingleBlobPass(centerX, centerY, baseColor, echoBloomIntensity, baseBlobRadius * 1.5f * sizeMultiplier, intensity); 
+            return; 
+        }
+
         DrawSingleBlobPass(centerX, centerY, baseColor, 1.0f, baseBlobRadius * 0.5f * sizeMultiplier, intensity); 
-        DrawSingleBlobPass(centerX, centerY, baseColor, 0.4f, baseBlobRadius * 1.5f * sizeMultiplier, intensity); 
-        DrawSingleBlobPass(centerX, centerY, baseColor, 0.2f, baseBlobRadius * 3.0f * sizeMultiplier, intensity); 
+        
+        if (isBiological)
+        {
+            DrawSingleBlobPass(centerX, centerY, baseColor, 0.6f, baseBlobRadius * 2.0f * sizeMultiplier, intensity); 
+            DrawSingleBlobPass(centerX, centerY, baseColor, 0.3f, baseBlobRadius * 3.5f * sizeMultiplier, intensity); 
+        }
+        else
+        {
+            DrawSingleBlobPass(centerX, centerY, baseColor, echoBloomIntensity, baseBlobRadius * 1.5f * sizeMultiplier, intensity); 
+            if (echoBloomSpread > 0f && echoBloomIntensity > 0f)
+            {
+                DrawSingleBlobPass(centerX, centerY, baseColor, echoBloomIntensity * 0.5f, baseBlobRadius * echoBloomSpread * sizeMultiplier, intensity); 
+            }
+        }
     }
 
     private void DrawSingleBlobPass(int cx, int cy, Color col, float maxAlpha, float radius, float intensity)
@@ -523,11 +604,15 @@ public class SonarManager : MonoBehaviour
                     if (px >= 0 && px < textureSize && py >= 0 && py < textureSize)
                     {
                         float alphaRaw = (1f - (dist / radius)) * maxAlpha;
-                        byte alphaToAdd = (byte)(alphaRaw * intensity * 255);
+                        
+                        float globalBrightnessMultiplier = 0.6f; 
+                        
+                        byte alphaToAdd = (byte)(alphaRaw * intensity * globalBrightnessMultiplier * 255);
 
                         int index = py * textureSize + px;
                         Color32 current = pixelBuffer[index];
 
+                        // 単純加算だとすぐ白飛びするので、最大値を少し抑えたり、加算カーブを緩やかにするのも手です
                         byte newAlpha = (byte)Mathf.Min(255, current.a + alphaToAdd);
                         pixelBuffer[index] = new Color32(baseR, baseG, baseB, newAlpha);
                     }

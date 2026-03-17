@@ -64,7 +64,6 @@ public class SteeringConsole : MonoBehaviour, IInteractable
         playerInput.enabled = false; 
         submarine.isPiloting = true; 
 
-        // 変更：クロスヘアとインタラクト文字を両方まとめて消す
         if (UIManager.Instance != null) 
         {
             UIManager.Instance.SetInteractUIVisible(false);
@@ -79,6 +78,11 @@ public class SteeringConsole : MonoBehaviour, IInteractable
         UIManager.Instance.canOpenMenu = false;
 
         SetAllBioAIActive(true);
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.LockPlayer();
+        }
 
         // --- カメラ切り替え ---
         if (fpsCamera != null) fpsCamera.SetActive(false);
@@ -97,7 +101,6 @@ public class SteeringConsole : MonoBehaviour, IInteractable
         playerInput.enabled = true; 
         submarine.isPiloting = false; 
 
-        // 変更：クロスヘアとインタラクト文字を両方まとめて復活させる
         if (UIManager.Instance != null) 
         {
             UIManager.Instance.SetInteractUIVisible(true);
@@ -107,6 +110,12 @@ public class SteeringConsole : MonoBehaviour, IInteractable
         UIManager.Instance.canOpenMenu = true;
 
         SetAllBioAIActive(false);
+
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.UnlockPlayer();
+        }
 
         // --- カメラ切り替え ---
         if (fpsCamera != null) fpsCamera.SetActive(true);

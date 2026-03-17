@@ -48,6 +48,9 @@ public class GameManager : MonoBehaviour
 
     private GameEventData currentPlayingEvent = null; // 現在実行中のイベント
 
+    [Header("カーソル制御")]
+    public bool forceShowCursor = false;
+
     void Awake()
     {
         if (Instance == null) Instance = this;
@@ -60,9 +63,9 @@ public class GameManager : MonoBehaviour
         StartDay();
     }
 
-#if UNITY_EDITOR
     void Update()
     {
+
         // 記憶しているフェーズと、現在のInspectorのフェーズが違っていたら手動更新
         if (lastPhase != currentPhase)
         {
@@ -70,7 +73,17 @@ public class GameManager : MonoBehaviour
             ChangePhase(currentPhase); 
         }
     }
-#endif
+
+    void LateUpdate()
+    {
+        if (forceShowCursor)
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+    }
+
+
 
     // ==========================================
     // オブジェクトを調べた時のフェーズ移行チェック
@@ -123,7 +136,6 @@ public class GameManager : MonoBehaviour
         else
         {
             // なければ通常通り、プレイヤーが自由に動ける朝としてスタート
-            // ★追加：イベントがない平和な朝なら、ただ画面を明るくしてゲーム開始
             if (UIManager.Instance != null) yield return StartCoroutine(UIManager.Instance.FadeIn(1.0f));
             Debug.Log("今日の朝は特にイベントなし。自由行動開始。");
         }
@@ -322,6 +334,9 @@ public class GameManager : MonoBehaviour
             if (rb != null) rb.isKinematic = true; // 物理演算を停止
         }
 
+ 
+        forceShowCursor = true; 
+
         // UI操作のためにカーソルを表示・ロック解除
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
@@ -343,6 +358,9 @@ public class GameManager : MonoBehaviour
 
         if (playerMovementScript != null) playerMovementScript.enabled = true;
         if (playerCameraScript != null) playerCameraScript.enabled = true;
+
+    
+        forceShowCursor = false; 
 
         // 再びゲーム用にカーソルを隠す・ロック
         Cursor.lockState = CursorLockMode.Locked;
@@ -449,13 +467,13 @@ public class GameManager : MonoBehaviour
                 }
                 else
                 {
-                    // 全部ではないが、条件の1つをクリアした時の「進捗通知」（お好みで！）
+                    // 全部ではないが、条件の1つをクリアした時の「進捗通知」
                     UIManager.Instance.ShowMissionNotification($"目的の進捗: {clearedCount}/{mission.targetFlagNames.Count}\n" + mission.displayText);
                     return;
                 }
             }
 
-            // ② 新しい目標が「発生」した時の通知（※ここは元のままでOKです！）
+            // ② 新しい目標が「発生」した時の通知
             if (mission.requiredFlagToAppear == updatedFlag && GetFlag(updatedFlag) == true)
             {
                 UIManager.Instance.ShowMissionNotification("新しい目的が追加されました");
@@ -499,6 +517,9 @@ public class GameManager : MonoBehaviour
         
         [Tooltip("ソナーに表示する実際の目的地（岩や沈没船など）")]
         public Transform sonarTargetLocation;
+
+        [HideInInspector]
+        public bool hasNotifiedClear = false;
     }
 
     [Header("現在のミッション一覧")]
@@ -530,12 +551,21 @@ public class GameManager : MonoBehaviour
             }
             if (mission.targetFlagNames.Count == 0) isCleared = false;
 
+            if (isCleared && !mission.hasNotifiedClear)
+            {
+                mission.hasNotifiedClear = true; // 2回目以降は出ないようにする
+                
+                if (SubmarineHUD.Instance != null)
+                {
+                    // 黄色などの目立つ色でコンソールに達成ログを流す
+                    SubmarineHUD.Instance.AddLog($"【任務達成】{mission.displayText}", "#FFFF00");
+                }
+            }
+
             // ② フラグによる出現条件
             bool isAppearFlagSet = string.IsNullOrEmpty(mission.requiredFlagToAppear) || GetFlag(mission.requiredFlagToAppear);
 
-            // ==========================================
-            // ③ ★追加：日数とフェーズによる出現条件をチェック！
-            // ==========================================
+          
             bool isTimeMet = true;
             if (mission.appearDay > 0)
             {
