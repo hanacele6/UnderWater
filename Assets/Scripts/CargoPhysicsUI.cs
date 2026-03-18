@@ -8,30 +8,41 @@ public class CargoPhysicsUI : MonoBehaviour
     [Header("UI設定")]
     [Tooltip("コンテナが落ちてくる親枠（パネル）")]
     public RectTransform containerDropArea;
-    [Tooltip("通常のランダムガチャ用コンテナのプレハブ")]
-    public GameObject normalContainerPrefab;
-    [Tooltip("ミッション用の目立つコンテナのプレハブ")]
+    [Tooltip("コンテナの落下口（排出口）となる位置")]
+    public RectTransform dropSpawnPoint;
+
+    [Header("コンテナプレハブ設定")]
+    public GameObject woodContainerPrefab;
+    public GameObject ironContainerPrefab;
+    public GameObject titaniumContainerPrefab;
     public GameObject missionContainerPrefab;
 
     void Awake() { Instance = this; }
 
     // 潜水艦がアイテムを拾った時にどこからでも呼べるメソッド
-    public void DropContainer(bool isMissionItem = false)
+    public void DropContainer(CrateType type)
     {
-        if (containerDropArea == null) return;
+        if (containerDropArea == null || dropSpawnPoint == null) return;
 
-        GameObject prefabToDrop = isMissionItem ? missionContainerPrefab : normalContainerPrefab;
+        GameObject prefabToDrop = null;
+
+        // 種類に応じてプレハブを切り替え
+        switch(type)
+        {
+            case CrateType.Wood: prefabToDrop = woodContainerPrefab; break;
+            case CrateType.Iron: prefabToDrop = ironContainerPrefab; break;
+            case CrateType.Titanium: prefabToDrop = titaniumContainerPrefab; break;
+            case CrateType.Mission: prefabToDrop = missionContainerPrefab; break;
+        }
+
         if (prefabToDrop == null) return;
 
-        // UI枠の上部、少しランダムなX座標から生成
-        float randomX = Random.Range(-containerDropArea.rect.width / 3f, containerDropArea.rect.width / 3f);
-        Vector3 spawnPos = new Vector3(randomX, containerDropArea.rect.height / 2f, 0);
-
         GameObject newContainer = Instantiate(prefabToDrop, containerDropArea);
-        newContainer.transform.localPosition = spawnPos;
 
-        // 生成時に少し回転をつけておくと、落ちた時にゴロゴロして可愛いです
-        newContainer.transform.localEulerAngles = new Vector3(0, 0, Random.Range(0f, 360f));
+        newContainer.transform.position = dropSpawnPoint.position;
+        float randomOffset = Random.Range(-15f, 15f);
+        newContainer.transform.localPosition += new Vector3(randomOffset, 0, 0);
+        newContainer.transform.localEulerAngles = new Vector3(0, 0, Random.Range(-10f, 10f));
     }
 
     // ソナーを離れる時に箱を空っぽにする（船内へ移送）

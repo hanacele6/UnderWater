@@ -8,6 +8,13 @@ public enum SubmarineTargetType
     Item
 }
 
+public enum CrateType
+{
+    Wood,       // 木（軽い、一般的なアイテム）
+    Iron,       // 鉄（少し重い、良いアイテム）
+    Titanium,   // チタン（非常に重い、レアアイテム）
+    Mission     // ミッション専用（特殊な見た目）
+}
 public enum SonarTargetShape
 {
     UI_Prefab,           // 機雷・アイテムなどの固定アイコン
@@ -25,6 +32,8 @@ public class SonarTarget : MonoBehaviour
 
     [Header("Item Settings")]
     public ItemData specificItemData;
+
+    public CrateType crateType = CrateType.Wood;
 
     private void OnValidate()
     {
@@ -54,12 +63,19 @@ public class SonarTarget : MonoBehaviour
             
             Destroy(gameObject);
         }
+      
         else if (targetType == SubmarineTargetType.Item)
         {
+            // データとして船内カーゴに追加
             sub.cargoQueue.Enqueue(specificItemData);
             
             if (SubmarineHUD.Instance != null)
                 SubmarineHUD.Instance.AddLog("通知: コンテナ回収完了。", "#44FF44");
+
+            if (CargoPhysicsUI.Instance != null)
+            {
+                CargoPhysicsUI.Instance.DropContainer(crateType);
+            }
             
             Destroy(gameObject);
         }

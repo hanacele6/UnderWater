@@ -1,6 +1,9 @@
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Rendering.Universal;
+using TMPro; 
 
 public class SteeringConsole : MonoBehaviour, IInteractable
 {
@@ -11,33 +14,50 @@ public class SteeringConsole : MonoBehaviour, IInteractable
     [Tooltip("画面に表示するソナーパネル全体")]
     public GameObject sonarPanel; 
 
-    // --- カメラの参照 ---
     [Header("カメラ設定")]
-    [Tooltip("普段のプレイヤー視点カメラ")]
     public GameObject fpsCamera;
-    [Tooltip("潜水艦のモニター用カメラ")]
     public GameObject submarineCamera;
-    [Tooltip("裏方のソナー撮影用カメラ")]
     public GameObject sonarCamera;
-    // ------------------------
+
+    [Header("演出設定")]
+    [Tooltip("SteeringConsole専用の暗転パネル（CanvasGroup付き）")]
+    public CanvasGroup fadePanel; 
+    [Tooltip("暗転中に文字を表示するフルスクリーンのテキストUI")]
+    public TMP_Text transitionText;
+    [Tooltip("一文字ずつ表示するスピード（秒）")]
+    public float typeWriterSpeed = 0.05f;
+
+    [Header("演出設定（効果音）")]
+    public AudioClip bootSound;
+    public AudioClip airlockSound;
+    public AudioClip shutdownSound;
+    private AudioSource audioSource;
 
     [Header("URP設定")]
-    [Tooltip("現在使用しているURP Assetを入れてください")]
     public UniversalRenderPipelineAsset urpAsset;
 
     private bool isPlayerPiloting = false;
+    private Coroutine transitionCoroutine; 
 
-    // ゲーム開始時に必ずソナーを消し、敵の動きも止める
     void Start()
     {
         if (sonarPanel != null) sonarPanel.SetActive(false);
+        if (transitionText != null) transitionText.text = ""; 
+        
+        if (fadePanel != null) 
+        {
+            fadePanel.alpha = 0f;
+            fadePanel.blocksRaycasts = false;
+        }
+
+        audioSource = GetComponent<AudioSource>(); 
+        if (audioSource == null) audioSource = gameObject.AddComponent<AudioSource>();
+
         SetAllBioAIActive(false); 
 
-        // --- 追加：ゲーム開始時はFPSカメラだけにする ---
         if (fpsCamera != null) fpsCamera.SetActive(true);
         if (submarineCamera != null) submarineCamera.SetActive(false);
         if (sonarCamera != null) sonarCamera.SetActive(false);
-        // ---------------------------------------------
     }
 
     public string GetInteractPrompt()
@@ -47,12 +67,12 @@ public class SteeringConsole : MonoBehaviour, IInteractable
 
     public void Interact()
     {
-        if (!isPlayerPiloting) StartPiloting();
+        if (!isPlayerPiloting && transitionCoroutine == null) StartPiloting();
     }
 
     void Update()
     {
-        if (isPlayerPiloting && Input.GetKeyDown(KeyCode.Q))
+        if (isPlayerPiloting && Input.GetKeyDown(KeyCode.Q) && transitionCoroutine == null)
         {
             StopPiloting();
         }
@@ -60,75 +80,181 @@ public class SteeringConsole : MonoBehaviour, IInteractable
 
     private void StartPiloting()
     {
-        isPlayerPiloting = true;
-        playerInput.enabled = false; 
-        submarine.isPiloting = true; 
-
-        if (UIManager.Instance != null) 
-        {
-            UIManager.Instance.SetInteractUIVisible(false);
-        }
-
-        if (DialogueManager.Instance != null)
-        {
-            DialogueManager.Instance.ForceEndDialogue();
-        }
+        isPlayerPiloting = true; 
+        if (transitionText != null) transitionText.text = "";
         
-        if (sonarPanel != null) sonarPanel.SetActive(true);
-        UIManager.Instance.canOpenMenu = false;
-
-        SetAllBioAIActive(true);
-
-        if (GameManager.Instance != null)
-        {
-            GameManager.Instance.LockPlayer();
-        }
-
-        // --- カメラ切り替え ---
-        if (fpsCamera != null) fpsCamera.SetActive(false);
-        if (submarineCamera != null) submarineCamera.SetActive(true);
-        if (sonarCamera != null) sonarCamera.SetActive(true);
-
-        if (urpAsset != null)
-        {
-            urpAsset.renderScale = 1.0f;
-        }
+        transitionCoroutine = StartCoroutine(StartPilotingSequence());
     }
 
     private void StopPiloting()
     {
-        isPlayerPiloting = false;
-        playerInput.enabled = true; 
-        submarine.isPiloting = false; 
+        if (transitionText != null) transitionText.text = "";
 
-        if (UIManager.Instance != null) 
-        {
-            UIManager.Instance.SetInteractUIVisible(true);
-        }
+        SubmarineStatus subStatus = submarine != null ? submarine.GetComponent<SubmarineStatus>() : null;
+        bool hasCargo = subStatus != null && subStatus.cargoQueue.Count > 0;
         
-        if (sonarPanel != null) sonarPanel.SetActive(false);
-        UIManager.Instance.canOpenMenu = true;
-
-        SetAllBioAIActive(false);
+        transitionCoroutine = StartCoroutine(StopPilotingSequence(hasCargo, subStatus));
+    }
 
 
-        if (GameManager.Instance != null)
+
+    private IEnumerator FadeInOut(float targetAlpha, float duration)
+    {
+        if (fadePanel == null) yield break;
+        
+        if (!fadePanel.gameObject.activeSelf)
         {
-            GameManager.Instance.UnlockPlayer();
+            fadePanel.gameObject.SetActive(true);
         }
 
-        // --- カメラ切り替え ---
+        fadePanel.blocksRaycasts = true; // フェード中はクリックなどを防ぐ
+        float startAlpha = fadePanel.alpha;
+        float time = 0;
+
+        while (time < duration)
+        {
+            time += Time.deltaTime;
+            fadePanel.alpha = Mathf.Lerp(startAlpha, targetAlpha, time / duration);
+            yield return null;
+        }
+        fadePanel.alpha = targetAlpha;
+
+        // 透明（0）に戻った時の処理
+        if (targetAlpha == 0f) 
+        {
+            fadePanel.blocksRaycasts = false;
+            
+            fadePanel.gameObject.SetActive(false); 
+        }
+    }
+
+    private IEnumerator StartPilotingSequence()
+    {
+        if (playerInput != null) playerInput.enabled = false;
+        if (GameManager.Instance != null) GameManager.Instance.LockPlayer(); 
+        if (UIManager.Instance != null) UIManager.Instance.SetInteractUIVisible(false);
+
+        yield return StartCoroutine(FadeInOut(1f, 0.4f)); 
+
+        if (fpsCamera != null) fpsCamera.SetActive(false);
+        if (submarineCamera != null) submarineCamera.SetActive(true);
+        if (sonarCamera != null) sonarCamera.SetActive(true);
+
+        if (audioSource != null && bootSound != null) audioSource.PlayOneShot(bootSound);
+
+        string line1 = ">> ソナーシステム 起動...\n";
+        yield return StartCoroutine(TypeWriterEffect(line1));
+        yield return new WaitForSeconds(0.5f);
+
+        //string line2 = ">> 全機能 オンライン。\n>> 操縦資格を確認。アライシス・ディープシー。";
+        //yield return StartCoroutine(TypeWriterEffect(line2));
+        //yield return new WaitForSeconds(1.0f); 
+
+        if (sonarPanel != null) sonarPanel.SetActive(true);
+        if (transitionText != null) transitionText.text = ""; 
+        
+        
+        yield return StartCoroutine(FadeInOut(0f, 0.4f)); 
+
+        ExecuteStartPilotingSettings();
+        transitionCoroutine = null; 
+    }
+
+    private void ExecuteStartPilotingSettings()
+    {
+        if (playerInput != null) playerInput.enabled = false; 
+        if (submarine != null) submarine.isPiloting = true; 
+
+        if (DialogueManager.Instance != null) DialogueManager.Instance.ForceEndDialogue();
+        if (UIManager.Instance != null) UIManager.Instance.canOpenMenu = false;
+
+        SetAllBioAIActive(true);
+        if (urpAsset != null) urpAsset.renderScale = 1.0f;
+    }
+
+    private IEnumerator StopPilotingSequence(bool hasCargo, SubmarineStatus subStatus)
+    {
+        if (GameManager.Instance != null) GameManager.Instance.LockPlayer(); 
+
+        yield return StartCoroutine(FadeInOut(1f, 0.4f)); 
+
+        if (sonarPanel != null) sonarPanel.SetActive(false);
+
+        if (hasCargo && subStatus != null)
+        {
+            int count = subStatus.cargoQueue.Count;
+
+            if (audioSource != null && airlockSound != null) audioSource.PlayOneShot(airlockSound);
+
+            string line1 = $">> 警告: 未登録カーゴ{count}個を検知。\n";
+            yield return StartCoroutine(TypeWriterEffect(line1));
+            yield return new WaitForSeconds(0.4f);
+
+            string line2 = ">> エアロック経由で船内移送を開始...\n";
+            yield return StartCoroutine(TypeWriterEffect(line2));
+            yield return new WaitForSeconds(1.0f);
+
+            if (CargoPhysicsUI.Instance != null) CargoPhysicsUI.Instance.ClearContainers();
+
+            string line3 = ">> 移送完了。船内にて開封してください。";
+            yield return StartCoroutine(TypeWriterEffect(line3));
+            yield return new WaitForSeconds(2.0f);
+        }
+        else
+        {
+            if (audioSource != null && shutdownSound != null) audioSource.PlayOneShot(shutdownSound);
+
+            string line1 = ">> ソナーシステム シャットダウン...\n";
+            yield return StartCoroutine(TypeWriterEffect(line1));
+            yield return new WaitForSeconds(0.5f);
+
+            string line2 = ">> 全機能 スタンドバイ。";
+            yield return StartCoroutine(TypeWriterEffect(line2));
+            yield return new WaitForSeconds(1.5f); 
+        }
+
+        if (transitionText != null) transitionText.text = "";
+        
         if (fpsCamera != null) fpsCamera.SetActive(true);
         if (submarineCamera != null) submarineCamera.SetActive(false);
         if (sonarCamera != null) sonarCamera.SetActive(false);
 
-        if (urpAsset != null)
+        // ★自前のフェードイン
+        yield return StartCoroutine(FadeInOut(0f, 0.4f)); 
+
+        ExecuteStopPilotingSettings();
+        transitionCoroutine = null; 
+    }
+
+    private void ExecuteStopPilotingSettings()
+    {
+        isPlayerPiloting = false;
+        if (playerInput != null) playerInput.enabled = true; 
+        if (submarine != null) submarine.isPiloting = false; 
+
+        if (UIManager.Instance != null) 
         {
-            urpAsset.renderScale = 0.5f;
+            UIManager.Instance.SetInteractUIVisible(true);
+            UIManager.Instance.canOpenMenu = true;
+        }
+        
+        SetAllBioAIActive(false);
+
+        if (GameManager.Instance != null) GameManager.Instance.UnlockPlayer();
+        if (urpAsset != null) urpAsset.renderScale = 0.5f;
+    }
+
+    private IEnumerator TypeWriterEffect(string text)
+    {
+        if (transitionText == null) yield break;
+
+        foreach (char c in text)
+        {
+            transitionText.text += c;
+            yield return new WaitForSeconds(typeWriterSpeed);
         }
     }
 
-    // シーン内のすべてのBioAIを一括でON/OFFする便利メソッド
     private void SetAllBioAIActive(bool isActive)
     {
         BioAI[] allBios = FindObjectsOfType<BioAI>();
