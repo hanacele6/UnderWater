@@ -40,7 +40,7 @@ public class CargoPhysicsUI : MonoBehaviour
         GameObject newContainer = Instantiate(prefabToDrop, containerDropArea);
 
         newContainer.transform.position = dropSpawnPoint.position;
-        float randomOffset = Random.Range(-15f, 15f);
+        float randomOffset = Random.Range(-45f, 45f);
         newContainer.transform.localPosition += new Vector3(randomOffset, 0, 0);
         newContainer.transform.localEulerAngles = new Vector3(0, 0, Random.Range(-10f, 10f));
     }

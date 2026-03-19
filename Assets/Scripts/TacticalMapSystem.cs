@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 
 public class TacticalMapSystem : MonoBehaviour
 {
@@ -17,6 +18,8 @@ public class TacticalMapSystem : MonoBehaviour
     public RectTransform mapContent;
     public TMP_Text sonarSectorText; 
 
+    //public GameObject mapCanvas;
+
     [Header("マップ操作設定")]
     public Transform player;
     public float gridSize = 100f; 
@@ -25,9 +28,6 @@ public class TacticalMapSystem : MonoBehaviour
     public float maxZoom = 500f;
     public float zoomSpeed = 30f;
 
-    // ==========================================
-    // ★追加・修正：カメラの高さと、移動限界の距離
-    // ==========================================
     [Tooltip("壁を見下ろせるカメラの固定の高さ（Y座標）")]
     public float cameraHeight = 10500f; 
     [Tooltip("中心からドラッグで移動できる最大距離")]
@@ -42,6 +42,8 @@ public class TacticalMapSystem : MonoBehaviour
     private Coroutine transitionCoroutine;
     private Vector3 cameraOffset;
     private Vector3 lastMousePos;
+    
+    private bool isDraggingMap = false;
 
     private class GridLineUI
     {
@@ -58,6 +60,7 @@ public class TacticalMapSystem : MonoBehaviour
     {
         if (mapPanel != null) mapPanel.SetActive(false);
         GenerateGridUI();
+        
     }
 
     void Update()
@@ -81,6 +84,19 @@ public class TacticalMapSystem : MonoBehaviour
         if (isOpen)
         {
             mapPanel.SetActive(true);
+            
+            if (mapCanvasGroup != null)
+            {
+                mapCanvasGroup.interactable = true;
+                mapCanvasGroup.blocksRaycasts = true;
+            }
+
+
+            if (CargoPhysicsUI.Instance != null && CargoPhysicsUI.Instance.containerDropArea != null) 
+            {
+                CargoPhysicsUI.Instance.containerDropArea.gameObject.SetActive(false);
+            }
+
             cameraOffset = Vector3.zero; 
             UpdateMapCamera(); 
             UpdateMapUI();
@@ -91,8 +107,15 @@ public class TacticalMapSystem : MonoBehaviour
         }
         else
         {
+            if (mapCanvasGroup != null) mapCanvasGroup.blocksRaycasts = false;
+
+            if (CargoPhysicsUI.Instance != null && CargoPhysicsUI.Instance.containerDropArea != null) 
+            {
+                CargoPhysicsUI.Instance.containerDropArea.gameObject.SetActive(true);
+            }
+            
             transitionCoroutine = StartCoroutine(CloseMapAnimation());
-            if (GameManager.Instance != null) GameManager.Instance.UnlockPlayer();
+            //if (GameManager.Instance != null) GameManager.Instance.UnlockPlayer();
         }
     }
 
@@ -102,19 +125,22 @@ public class TacticalMapSystem : MonoBehaviour
 
         if (Input.GetMouseButtonDown(0))
         {
+
             lastMousePos = Input.mousePosition;
+            isDraggingMap = true; 
         }
-        else if (Input.GetMouseButton(0))
+        else if (Input.GetMouseButton(0) && isDraggingMap)
         {
             Vector3 delta = Input.mousePosition - lastMousePos;
             float panFactor = mapCamera.orthographicSize / Screen.height * 2f;
             cameraOffset -= new Vector3(delta.x * panFactor, 0, delta.y * panFactor);
             lastMousePos = Input.mousePosition;
         }
+        else if (Input.GetMouseButtonUp(0))
+        {
+            isDraggingMap = false;
+        }
 
-        // ==========================================
-        // ★追加：ドラッグ移動をマップの端（限界）までに制限する！
-        // ==========================================
         cameraOffset.x = Mathf.Clamp(cameraOffset.x, -maxPanDistance, maxPanDistance);
         cameraOffset.z = Mathf.Clamp(cameraOffset.z, -maxPanDistance, maxPanDistance);
 
@@ -124,9 +150,6 @@ public class TacticalMapSystem : MonoBehaviour
             mapCamera.orthographicSize = Mathf.Clamp(mapCamera.orthographicSize - scroll * zoomSpeed, minZoom, maxZoom);
         }
 
-        // ==========================================
-        // ★修正：プレイヤーのY座標に関係なく、指定した高さ（10500）にカメラを固定する！
-        // ==========================================
         mapCamera.transform.position = new Vector3(player.position.x, cameraHeight, player.position.z) + cameraOffset;
     }
 
@@ -185,11 +208,15 @@ public class TacticalMapSystem : MonoBehaviour
         GameObject lineObj = Instantiate(gridLinePrefab, mapContent);
         GameObject textObj = Instantiate(gridTextPrefab, mapContent);
         
-        lineObj.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.15f);
+        Image img = lineObj.GetComponent<Image>();
+        img.color = new Color(1f, 1f, 1f, 0.15f);
+        img.raycastTarget = false; 
+
         TMP_Text tmp = textObj.GetComponent<TMP_Text>();
         tmp.text = text;
         tmp.color = new Color(1f, 1f, 1f, 0.3f);
         tmp.fontSize = 18;
+        tmp.raycastTarget = false; 
 
         activeGridLines.Add(new GridLineUI {
             line = lineObj.GetComponent<RectTransform>(),
@@ -214,12 +241,9 @@ public class TacticalMapSystem : MonoBehaviour
         return $"{col}-{row}";
     }
 
-    // ==========================================
-    // ★修正：Zを超えたら AA, AB... になるExcel方式の列名生成
-    // ==========================================
     private string GetColName(int index) 
     { 
-        int n = index + 51; // マイナスを防ぐオフセット
+        int n = index + 51; 
         string result = "";
         while (n > 0)
         {

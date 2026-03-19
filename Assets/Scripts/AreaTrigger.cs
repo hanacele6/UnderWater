@@ -75,7 +75,7 @@ public class MissionAreaTrigger : MonoBehaviour
         // ★ 回収ミッションなら、ここでUIの箱に「特別仕様のコンテナ」を物理で落とす処理を呼ぶ
         if (areaType == AreaType.RetrieveItem && CargoPhysicsUI.Instance != null)
         {
-            CargoPhysicsUI.Instance.DropContainer(true); // true = ミッション用コンテナ
+           CargoPhysicsUI.Instance.DropContainer(CrateType.Mission);
         }
 
         if (!string.IsNullOrEmpty(reachMessage) && UIManager.Instance != null)

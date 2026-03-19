@@ -10,6 +10,7 @@ public class SteeringConsole : MonoBehaviour, IInteractable
     [Header("連携するオブジェクト")]
     public SubmarineController submarine;
     public PlayerInput playerInput; 
+    public GameObject mapCanvas;
     
     [Tooltip("画面に表示するソナーパネル全体")]
     public GameObject sonarPanel; 
@@ -58,6 +59,7 @@ public class SteeringConsole : MonoBehaviour, IInteractable
         if (fpsCamera != null) fpsCamera.SetActive(true);
         if (submarineCamera != null) submarineCamera.SetActive(false);
         if (sonarCamera != null) sonarCamera.SetActive(false);
+        if (mapCanvas != null) mapCanvas.SetActive(false);
     }
 
     public string GetInteractPrompt()
@@ -135,6 +137,7 @@ public class SteeringConsole : MonoBehaviour, IInteractable
         if (UIManager.Instance != null) UIManager.Instance.SetInteractUIVisible(false);
 
         yield return StartCoroutine(FadeInOut(1f, 0.4f)); 
+        if (urpAsset != null) urpAsset.renderScale = 1.0f;
 
         if (fpsCamera != null) fpsCamera.SetActive(false);
         if (submarineCamera != null) submarineCamera.SetActive(true);
@@ -169,12 +172,20 @@ public class SteeringConsole : MonoBehaviour, IInteractable
         if (UIManager.Instance != null) UIManager.Instance.canOpenMenu = false;
 
         SetAllBioAIActive(true);
-        if (urpAsset != null) urpAsset.renderScale = 1.0f;
+   
+        if (mapCanvas != null) mapCanvas.SetActive(true);
     }
 
     private IEnumerator StopPilotingSequence(bool hasCargo, SubmarineStatus subStatus)
     {
         if (GameManager.Instance != null) GameManager.Instance.LockPlayer(); 
+
+        if (mapCanvas != null) mapCanvas.SetActive(false); 
+        
+        if (TacticalMapSystem.Instance != null && TacticalMapSystem.Instance.mapPanel.activeSelf)
+        {
+            TacticalMapSystem.Instance.ToggleMap(); 
+        }
 
         yield return StartCoroutine(FadeInOut(1f, 0.4f)); 
 
@@ -186,7 +197,7 @@ public class SteeringConsole : MonoBehaviour, IInteractable
 
             if (audioSource != null && airlockSound != null) audioSource.PlayOneShot(airlockSound);
 
-            string line1 = $">> 警告: 未登録カーゴ{count}個を検知。\n";
+            string line1 = $">> 未登録カーゴ{count}個を検知。\n";
             yield return StartCoroutine(TypeWriterEffect(line1));
             yield return new WaitForSeconds(0.4f);
 
@@ -196,9 +207,9 @@ public class SteeringConsole : MonoBehaviour, IInteractable
 
             if (CargoPhysicsUI.Instance != null) CargoPhysicsUI.Instance.ClearContainers();
 
-            string line3 = ">> 移送完了。船内にて開封してください。";
-            yield return StartCoroutine(TypeWriterEffect(line3));
-            yield return new WaitForSeconds(2.0f);
+            //string line3 = ">> 移送完了。船内にて開封してください。";
+            //yield return StartCoroutine(TypeWriterEffect(line3));
+            //yield return new WaitForSeconds(2.0f);
         }
         else
         {
@@ -208,9 +219,9 @@ public class SteeringConsole : MonoBehaviour, IInteractable
             yield return StartCoroutine(TypeWriterEffect(line1));
             yield return new WaitForSeconds(0.5f);
 
-            string line2 = ">> 全機能 スタンドバイ。";
-            yield return StartCoroutine(TypeWriterEffect(line2));
-            yield return new WaitForSeconds(1.5f); 
+            //string line2 = ">> 全機能 スタンドバイ。";
+            //yield return StartCoroutine(TypeWriterEffect(line2));
+            //yield return new WaitForSeconds(1.5f); 
         }
 
         if (transitionText != null) transitionText.text = "";
@@ -219,11 +230,12 @@ public class SteeringConsole : MonoBehaviour, IInteractable
         if (submarineCamera != null) submarineCamera.SetActive(false);
         if (sonarCamera != null) sonarCamera.SetActive(false);
 
-        // ★自前のフェードイン
         yield return StartCoroutine(FadeInOut(0f, 0.4f)); 
 
         ExecuteStopPilotingSettings();
         transitionCoroutine = null; 
+
+        
     }
 
     private void ExecuteStopPilotingSettings()
