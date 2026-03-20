@@ -16,9 +16,26 @@ public class DialogueManager : MonoBehaviour
     public TextMeshProUGUI dialogueText; 
     public Image portraitImage;
 
+    [Header("UI設定（ソナー通信時）")]
+    public GameObject sonarDialoguePanel; 
+    public TextMeshProUGUI sonarNameText; 
+    public TextMeshProUGUI sonarDialogueText; 
+    public Image sonarPortraitImage;
+    
+    [HideInInspector]
+    public bool isRadioMode = false;
+
     [Header("選択肢UI設定")]
     public GameObject choicePanel;         // 選択肢ボタンを並べる親パネル
     public GameObject choiceButtonPrefab;  // 選択肢ボタンのプレハブ
+
+    [Header("自動送り設定")]
+    [Tooltip("ONにすると、通信中（ラジオモード）は自動で会話が進みます")]
+    public bool autoAdvanceInRadio = true; 
+    [Tooltip("文字が表示し終わってから、次に進むまでの待機時間（秒）")]
+    public float autoAdvanceTime = 3.0f;   
+
+    private Coroutine autoAdvanceCoroutine; // 自動送りのタイマー
 
     // ==========================================
     // 全画面演出（スチル画像・映像）UI
@@ -53,10 +70,8 @@ public class DialogueManager : MonoBehaviour
         dialoguePanel.SetActive(false); 
         if (choicePanel != null) choicePanel.SetActive(false);
 
-        // ★追加：画像と動画の画面を最初は隠しておく
         ClearMedia();
 
-        // ★追加：動画用のスクリーン（RenderTexture）を自動で作成して貼り付ける便利処理
         if (videoPlayer != null && videoDisplayUI != null)
         {
             RenderTexture rt = new RenderTexture(1920, 1080, 16, RenderTextureFormat.ARGB32);
@@ -66,9 +81,6 @@ public class DialogueManager : MonoBehaviour
         }
     }
 
-    // ==========================================
-    // ★追加：画像と動画を画面から消すメソッド
-    // ==========================================
     private void ClearMedia()
     {
         if (fullScreenImageUI != null) fullScreenImageUI.gameObject.SetActive(false);
@@ -92,11 +104,11 @@ public class DialogueManager : MonoBehaviour
         currentDialogue = null;
         isTalking = false;
         isWaitingForChoice = false;
-        isWaitingForVideo = false; // ★追加
+        isWaitingForVideo = false; 
         dialoguePanel.SetActive(false);
         if (choicePanel != null) choicePanel.SetActive(false);
         
-        ClearMedia(); // ★追加：強制終了時も画像を消す
+        ClearMedia(); 
 
         Debug.Log("会話が外部要因で強制終了されました");
     }
@@ -114,12 +126,25 @@ public class DialogueManager : MonoBehaviour
         if (npc != null) currentInteractedNPC = npc;
         if (onComplete != null) onCompleteCallback = onComplete;
 
-        dialoguePanel.SetActive(true);
+
+        if (isRadioMode)
+        {
+            if (sonarDialoguePanel != null) sonarDialoguePanel.SetActive(true);
+            if (dialoguePanel != null) dialoguePanel.SetActive(false);
+        }
+        else
+        {
+            if (dialoguePanel != null) dialoguePanel.SetActive(true);
+            if (sonarDialoguePanel != null) sonarDialoguePanel.SetActive(false);
+        }
+
         if (choicePanel != null) choicePanel.SetActive(false); 
+        
         if (UIManager.Instance != null) {
             UIManager.Instance.SetMainMissionPanelVisible(false);
             UIManager.Instance.SetInteractUIVisible(false);
         }
+        
         isTalking = true;
         if (UIManager.Instance != null) UIManager.Instance.SetDialogueMode(true);
         isWaitingForChoice = false;
@@ -131,19 +156,33 @@ public class DialogueManager : MonoBehaviour
 
         DisplayNextSentence();
     }
-
     public void DisplayNextSentence()
     {
-        if (isWaitingForChoice || isWaitingForVideo) return; // ★変更：映像待ちの時は次へ進めない
+        if (isWaitingForChoice || isWaitingForVideo) return; 
+
+        // 自動送りのタイマーが動いていたら止める
+        if (autoAdvanceCoroutine != null) 
+        {
+            StopCoroutine(autoAdvanceCoroutine);
+            autoAdvanceCoroutine = null;
+        }
+
+        TextMeshProUGUI activeDialogueText = isRadioMode ? sonarDialogueText : dialogueText;
 
         if (typingCoroutine != null)
         {
             StopCoroutine(typingCoroutine);
             typingCoroutine = null;
             string cleanText = System.Text.RegularExpressions.Regex.Replace(currentFullText, "<speed=.*?>", "");
-            dialogueText.text = cleanText; 
+            if (activeDialogueText != null) activeDialogueText.text = cleanText; 
 
             CheckForChoicesOrJumps();
+
+            var currentSentenceRef = currentSentences[currentIndex - 1];
+            if (autoAdvanceInRadio && isRadioMode && (currentSentenceRef.choices == null || currentSentenceRef.choices.Count == 0))
+            {
+                autoAdvanceCoroutine = StartCoroutine(AutoAdvanceRoutine());
+            }
             return;
         }
 
@@ -158,33 +197,27 @@ public class DialogueManager : MonoBehaviour
         
         currentFullText = sentence.text; 
 
-        if (nameText != null) nameText.text = sentence.speakerName;
-        
-        if (GameManager.Instance != null)
-        {
-            GameManager.Instance.UpdateCameraTarget(sentence.speakerName);
-        }
+        TextMeshProUGUI activeNameText = isRadioMode ? sonarNameText : nameText;
+        Image activePortrait = isRadioMode ? sonarPortraitImage : portraitImage;
 
-        if (portraitImage != null)
+        if (activeNameText != null) activeNameText.text = sentence.speakerName;
+        
+        if (GameManager.Instance != null) GameManager.Instance.UpdateCameraTarget(sentence.speakerName);
+
+        if (activePortrait != null)
         {
             if (sentence.portrait != null)
             {
-                portraitImage.sprite = sentence.portrait;
-                portraitImage.gameObject.SetActive(true);
+                activePortrait.sprite = sentence.portrait;
+                activePortrait.gameObject.SetActive(true);
             }
-            else
-            {
-                portraitImage.gameObject.SetActive(false);
-            }
+            else activePortrait.gameObject.SetActive(false);
         }
 
         currentPitch = sentence.voicePitch; 
         if (currentPitch <= 0) currentPitch = 1.0f; 
 
-        // ==========================================
-        // ★追加：全画面演出（画像・映像）の反映
-        // ==========================================
-        if (sentence.clearMedia) ClearMedia(); // メディアを消す指示があれば消す
+        if (sentence.clearMedia) ClearMedia(); 
 
         if (sentence.fullScreenImage != null && fullScreenImageUI != null)
         {
@@ -200,49 +233,40 @@ public class DialogueManager : MonoBehaviour
 
             if (sentence.waitVideoFinish)
             {
-                // ★ 映像を待つ設定なら、専用の待機モードに入る
-                StartCoroutine(WaitVideoFinishRoutine(sentence));
-                return; // ここで処理を止める（文字送りはコルーチン内でやる）
+                StartCoroutine(WaitVideoFinishRoutine(sentence, activeDialogueText));
+                return; 
             }
         }
 
-        // 映像待機がない場合は通常通り文字送りを開始
-        typingCoroutine = StartCoroutine(TypeSentence(currentFullText));
+
+        typingCoroutine = StartCoroutine(TypeSentence(currentFullText, activeDialogueText)); 
     }
 
-    // ==========================================
-    // ★追加：動画が終わるまで待機する処理
-    // ==========================================
-    private IEnumerator WaitVideoFinishRoutine(DialogueData.Sentence sentence)
+    private IEnumerator WaitVideoFinishRoutine(DialogueData.Sentence sentence, TextMeshProUGUI targetTextUI)
     {
         isWaitingForVideo = true;
 
         bool hasText = !string.IsNullOrEmpty(sentence.text);
 
-        // 文字が空欄の場合は、会話の黒枠自体を隠して「映画」のようにする
+        GameObject activePanel = isRadioMode ? sonarDialoguePanel : dialoguePanel;
+
         if (!hasText)
         {
-            dialoguePanel.SetActive(false);
+            if (activePanel != null) activePanel.SetActive(false);
         }
         else
         {
-            // 文字がある場合は、裏で文字送りを進めておく
-            typingCoroutine = StartCoroutine(TypeSentence(sentence.text));
+            typingCoroutine = StartCoroutine(TypeSentence(sentence.text, targetTextUI));
         }
 
-        // 動画の再生が始まるまで少し待つ
         yield return new WaitForSeconds(0.1f);
         yield return new WaitUntil(() => videoPlayer.isPlaying);
-
-        // 動画が終わるまでひたすら待機（クリックしても進みません）
         yield return new WaitWhile(() => videoPlayer.isPlaying);
 
         isWaitingForVideo = false;
 
-        // 会話の黒枠を元に戻す
-        dialoguePanel.SetActive(true);
+        if (activePanel != null) activePanel.SetActive(true);
 
-        // もし「文字空欄（映画モード）」だった場合は、動画が終わったら自動で次のセリフへ進むとスムーズ！
         if (!hasText)
         {
             DisplayNextSentence();
@@ -335,7 +359,8 @@ public class DialogueManager : MonoBehaviour
 
     void EndDialogue()
     {
-        dialoguePanel.SetActive(false);
+        if (dialoguePanel != null) dialoguePanel.SetActive(false);
+        if (sonarDialoguePanel != null) sonarDialoguePanel.SetActive(false);
         if (choicePanel != null) choicePanel.SetActive(false);
         
         isTalking = false;
@@ -343,7 +368,7 @@ public class DialogueManager : MonoBehaviour
         isWaitingForChoice = false;
         isWaitingForVideo = false;
 
-        ClearMedia(); // ★追加：会話が終わったら画像と動画を消す
+        ClearMedia(); 
 
         Debug.Log("会話終了");
 
@@ -367,26 +392,42 @@ public class DialogueManager : MonoBehaviour
         if (UIManager.Instance != null) 
         {
             UIManager.Instance.SetMainMissionPanelVisible(true);
-            UIManager.Instance.SetInteractUIVisible(true); 
+            if (!isRadioMode)
+            {
+                UIManager.Instance.SetInteractUIVisible(true); 
+            }
         }
     }
 
     void Update()
     {
-        // ★変更：isWaitingForVideo（映像待ち）の時もクリックを無効にする
-        if (isTalking && !isWaitingForChoice && !isWaitingForVideo && (Input.GetMouseButtonDown(0) || Input.GetKeyDown(KeyCode.Space)))
+        if (isTalking && !isWaitingForChoice && !isWaitingForVideo)
         {
-            if (UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()) 
+            bool tryAdvance = Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(0);
+
+            if (tryAdvance)
             {
-                return; 
+                if (Input.GetMouseButtonDown(0) && IsPointerOverUIButton()) 
+                {
+                    return; 
+                }
+                
+                DisplayNextSentence();
             }
-            DisplayNextSentence();
         }
     }
+    
 
-    IEnumerator TypeSentence(string sentence)
+    private IEnumerator AutoAdvanceRoutine()
     {
-        dialogueText.text = "";
+        yield return new WaitForSeconds(autoAdvanceTime);
+        DisplayNextSentence();
+    }
+
+
+    IEnumerator TypeSentence(string sentence, TextMeshProUGUI targetTextUI)
+    {
+        if (targetTextUI != null) targetTextUI.text = "";
         float currentSpeed = 0.05f;
 
         for (int i = 0; i < sentence.Length; i++)
@@ -407,14 +448,14 @@ public class DialogueManager : MonoBehaviour
                     }
                     else
                     {
-                        dialogueText.text += tag;
+                        if (targetTextUI != null) targetTextUI.text += tag;
                         i = closingBracket;
                         continue;
                     }
                 }
             }
 
-            dialogueText.text += sentence[i];
+            if (targetTextUI != null) targetTextUI.text += sentence[i];
 
             if (audioSource != null && typeSound != null && !char.IsWhiteSpace(sentence[i]))
             {
@@ -427,5 +468,33 @@ public class DialogueManager : MonoBehaviour
         typingCoroutine = null; 
 
         CheckForChoicesOrJumps();
+
+
+        var currentSentence = currentSentences[currentIndex - 1];
+        if (autoAdvanceInRadio && isRadioMode && (currentSentence.choices == null || currentSentence.choices.Count == 0))
+        {
+            autoAdvanceCoroutine = StartCoroutine(AutoAdvanceRoutine());
+        }
+    }
+
+    private bool IsPointerOverUIButton()
+    {
+        if (UnityEngine.EventSystems.EventSystem.current == null) return false;
+        
+        UnityEngine.EventSystems.PointerEventData eventData = new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current);
+        eventData.position = Input.mousePosition;
+        List<UnityEngine.EventSystems.RaycastResult> results = new List<UnityEngine.EventSystems.RaycastResult>();
+        UnityEngine.EventSystems.EventSystem.current.RaycastAll(eventData, results);
+        
+        foreach (UnityEngine.EventSystems.RaycastResult result in results)
+        {
+            // Buttonコンポーネントか、Toggleコンポーネントが付いているUIだけを「ボタン」とみなす！
+            if (result.gameObject.GetComponent<UnityEngine.UI.Button>() != null || 
+                result.gameObject.GetComponent<UnityEngine.UI.Toggle>() != null)
+            {
+                return true; 
+            }
+        }
+        return false; // ただの背景画像なら false（クリックで会話が進む）
     }
 }

@@ -46,6 +46,10 @@ public class GameManager : MonoBehaviour
     [Tooltip("発生しうるすべてのイベントデータをここに登録します")]
     public List<GameEventData> allGameEvents = new List<GameEventData>();
 
+    [Header("完了済みイベント")]
+    public List<GameEventData> completedEvents = new List<GameEventData>();
+    
+
     private GameEventData currentPlayingEvent = null; // 現在実行中のイベント
 
     [Header("カーソル制御")]
@@ -125,7 +129,7 @@ public class GameManager : MonoBehaviour
         UpdateMainMissionHUD();
 
         // 2. 朝イチ（Briefing開始直後）に発生すべき台本がないかチェックする
-        GameEventData morningEvent = CheckForPendingEvents(GamePhase.Briefing);
+        GameEventData morningEvent = CheckForPendingEvents(GamePhase.Briefing, EventTriggerType.AutoOnPhaseStart);
 
         if (morningEvent != null)
         {
@@ -147,71 +151,64 @@ public class GameManager : MonoBehaviour
         lastPhase = currentPhase;
         Debug.Log($"フェーズ移行: {currentPhase}");
 
-        switch (currentPhase)
-        {
-            case GamePhase.Briefing: break;
-            case GamePhase.Operation: break;
-            case GamePhase.EventCheck:
-                CheckForEvents(); // イベント判定を自動実行
-                break;
-            case GamePhase.Incident: break;
-            case GamePhase.FreeTime: break;
-        }
 
-        // UIやNPCに「フェーズが変わった！」と通知する
-        OnPhaseChanged?.Invoke(currentPhase);
-    }
-
-    // ==========================================
-    // 進行管理システム本体（NextPhaseを改修）
-    // ==========================================
-    public void NextPhase()
-    {
-        // 次の日常フェーズに進む前に、割り込むべきイベント（台本）がないかチェックする
-        GameEventData pendingEvent = CheckForPendingEvents(currentPhase);
+        GameEventData pendingEvent = CheckForPendingEvents(currentPhase, EventTriggerType.AutoOnPhaseStart);
 
         if (pendingEvent != null)
         {
-            // 割り込みイベント発生！
             StartEvent(pendingEvent);
         }
         else
         {
-            // イベントがなければ通常の1日の流れを進める
-            switch (currentPhase)
-            {
-                case GamePhase.Briefing: ChangePhase(GamePhase.Operation); break;
-                case GamePhase.Operation: ChangePhase(GamePhase.FreeTime); break; // EventCheckを廃止し直接遷移
-                case GamePhase.FreeTime: GoToNextDay(); break;
-                
-                // イベント終了時などはここ呼ばれる想定
-                case GamePhase.Incident: ChangePhase(GamePhase.FreeTime); break; 
-            }
+            OnPhaseChanged?.Invoke(currentPhase);
+        }
+    }
+
+    public void NextPhase()
+    {
+        switch (currentPhase)
+        {
+            case GamePhase.Briefing: ChangePhase(GamePhase.Operation); break;
+            case GamePhase.Operation: ChangePhase(GamePhase.FreeTime); break; 
+            case GamePhase.FreeTime: GoToNextDay(); break;
+
+            case GamePhase.Incident: ChangePhase(GamePhase.FreeTime); break; 
         }
     }
 
     // ==========================================
     // 台本（イベント）判定・実行システム
     // ==========================================
-    private GameEventData CheckForPendingEvents(GamePhase timing)
+    public bool TriggerInteractEvent(string targetID)
+    {
+        // 今のフェーズで、この targetID を調べた時に起きるイベントがないか探す
+        GameEventData pendingEvent = CheckForPendingEvents(currentPhase, EventTriggerType.OnInteract, targetID);
+
+        if (pendingEvent != null)
+        {
+            StartEvent(pendingEvent);
+            return true; // イベントが開始された！
+        }
+        return false; // 特にイベントはなかった
+    }
+    private GameEventData CheckForPendingEvents(GamePhase timing, EventTriggerType triggerType, string interactID = "")
     {
         foreach (var eventData in allGameEvents)
         {
-            // 条件1: フェーズのタイミングが一致しているか
+            if (completedEvents.Contains(eventData)) continue;
+
             if (eventData.triggerTiming != timing) continue;
+            
+            if (eventData.triggerType != triggerType) continue;
 
-            // 条件2: 日数指定がある場合、一致しているか
+            if (triggerType == EventTriggerType.OnInteract && eventData.interactTargetID != interactID) continue;
+
             if (eventData.requiredDay != 0 && eventData.requiredDay != currentDay) continue;
+            if (!string.IsNullOrEmpty(eventData.requiredFlagName) && GetFlag(eventData.requiredFlagName) != eventData.requiredFlagValue) continue;
 
-            // 条件3: フラグ条件を満たしているか
-            if (!string.IsNullOrEmpty(eventData.requiredFlagName))
-            {
-                if (GetFlag(eventData.requiredFlagName) != eventData.requiredFlagValue) continue;
-            }
-
-            return eventData; // 全条件クリア！このイベントを再生する
+            return eventData; 
         }
-        return null; // 発生するイベントなし
+        return null; 
     }
 
     // GameManager.cs 内
@@ -227,10 +224,17 @@ public class GameManager : MonoBehaviour
     {
         currentPlayingEvent = eventData;
 
+        bool isRadio = DialogueManager.Instance != null && DialogueManager.Instance.isRadioMode;
+
+        
+
         // 1. まず画面を暗転させる
-        if (UIManager.Instance != null && UIManager.Instance.fadeCanvasGroup != null) 
+        if (!isRadio)
         {
-            yield return StartCoroutine(UIManager.Instance.FadeOut(0.5f));
+            if (UIManager.Instance != null && UIManager.Instance.fadeCanvasGroup != null) 
+            {
+                yield return StartCoroutine(UIManager.Instance.FadeOut(0.5f));
+            }
         }
 
         // 2. フラグ立て
@@ -256,12 +260,18 @@ public class GameManager : MonoBehaviour
 
         yield return null;
 
-        LockPlayer();
+        if (!eventData.canInteractDuringDialogue)
+        {
+            LockPlayer();
+        }
 
         // 4. 画面を明るくする
-        if (UIManager.Instance != null && UIManager.Instance.fadeCanvasGroup != null) 
+        if (!isRadio)
         {
-            yield return StartCoroutine(UIManager.Instance.FadeIn(0.5f));
+            if (UIManager.Instance != null && UIManager.Instance.fadeCanvasGroup != null) 
+            {
+                yield return StartCoroutine(UIManager.Instance.FadeIn(0.5f));
+            }
         }
 
         // 5. 会話スタート
@@ -270,9 +280,6 @@ public class GameManager : MonoBehaviour
         {
             DialogueData tempDialogue = ScriptableObject.CreateInstance<DialogueData>();
             tempDialogue.sentences = eventData.sentences;
-
-            tempDialogue.sentences = eventData.sentences;
-            
             DialogueManager.Instance.StartDialogue(tempDialogue, CompleteCurrentEvent);
         }
         else if (eventData.type == EventType.PlayableIncident)
@@ -295,7 +302,15 @@ public class GameManager : MonoBehaviour
             currentStage = null;
         }
 
-        UnlockPlayer();
+        if (!completedEvents.Contains(currentPlayingEvent))
+        {
+            completedEvents.Add(currentPlayingEvent);
+        }
+
+        if (!currentPlayingEvent.canInteractDuringDialogue)
+        {
+            UnlockPlayer();
+        }
 
         Debug.Log($"【イベント完了】: {currentPlayingEvent.eventMemo}");
 
@@ -316,12 +331,15 @@ public class GameManager : MonoBehaviour
     public MonoBehaviour playerMovementScript; // プレイヤーの移動スクリプト
     public MonoBehaviour playerCameraScript;   // 視点移動（MouseLookなど）のスクリプト
 
+    public PlayerInteract playerInteractScript;
+
     // イベント開始時に呼ぶ
 
     public void LockPlayer()
     {
         if (playerMovementScript != null) playerMovementScript.enabled = false;
         if (playerCameraScript != null) playerCameraScript.enabled = false;
+        if (playerInteractScript != null) playerInteractScript.enabled = false;
 
         // 物理エンジンをイベント中はずっと眠らせる
         GameObject player = GameObject.FindWithTag("Player");
@@ -345,7 +363,7 @@ public class GameManager : MonoBehaviour
     // イベント終了時に呼ぶ
     public void UnlockPlayer()
     {
-        // 物理エンジンを目覚めさせる
+        if (DialogueManager.Instance != null && DialogueManager.Instance.isRadioMode) return;
         GameObject player = GameObject.FindWithTag("Player");
         if (player != null)
         {
@@ -358,6 +376,7 @@ public class GameManager : MonoBehaviour
 
         if (playerMovementScript != null) playerMovementScript.enabled = true;
         if (playerCameraScript != null) playerCameraScript.enabled = true;
+        if (playerInteractScript != null) playerInteractScript.enabled = true;
 
     
         forceShowCursor = false; 

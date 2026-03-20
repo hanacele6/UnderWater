@@ -65,4 +65,8 @@ public class DialogueData : ScriptableObject
     [Header("フラグ設定（オプション）")]
     [Tooltip("この会話を読み終わった時に立てるフラグ（空欄なら何もしない）")]
     public string flagToSetOnComplete;
+
+    [Header("システム設定")]
+    [Tooltip("ONにすると、会話中もプレイヤーが動けたりソナーを操作できたりします")]
+    public bool canInteractDuringDialogue = false;
 }

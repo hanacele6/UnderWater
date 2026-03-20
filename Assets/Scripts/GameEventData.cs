@@ -4,6 +4,12 @@ using System.Collections.Generic;
 // ==========================================
 // イベントの種類を定義
 // ==========================================
+
+public enum EventTriggerType
+{
+    AutoOnPhaseStart, // フェーズが始まった瞬間に勝手に始まる（今まで通り）
+    OnInteract        // 特定のモノ（操縦席など）を調べた瞬間に始まる
+}
 public enum EventType
 {
     ConversationOnly, // 画面固定の会話のみ（プレイヤー操作ロック）
@@ -34,7 +40,13 @@ public class GameEventData : ScriptableObject
     [Tooltip("このイベントが発生する日付（0ならいつでも）")]
     public int requiredDay = 0;
     
-    [Tooltip("どのフェーズの『直後』に発生するか")]
+    [Tooltip("このイベントはどうやって始まりますか？")]
+    public EventTriggerType triggerType = EventTriggerType.AutoOnPhaseStart;
+
+    [Tooltip("トリガーがOnInteractの場合、調べる対象のID（例：SteeringConsole）を入力")]
+    public string interactTargetID;
+
+    [Tooltip("どのフェーズの時に発生するか")]
     public GamePhase triggerTiming;
 
     [Tooltip("必要なフラグ（空ならフラグ不要）")]
@@ -51,6 +63,10 @@ public class GameEventData : ScriptableObject
 
     [Tooltip("このイベントが始まった瞬間にONにするフラグ（証拠品の出現用など）")]
     public string startEventFlag; 
+
+    [Header("システム設定")]
+    [Tooltip("ONにすると、このイベント会話中もプレイヤーが操作可能（ながら会話）になります")]
+    public bool canInteractDuringDialogue = false;
 
     [Header("会話データ (ConversationOnly用)")]
     [Tooltip("上から順番にテキストが表示されます。PlayableIncidentの場合は空でOKです。")]

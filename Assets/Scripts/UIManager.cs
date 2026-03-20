@@ -250,31 +250,39 @@ public class UIManager : MonoBehaviour
     {
         if (isActive)
         {
-            if (playerInput != null) playerInput.enabled = false;
+            //if (playerInput != null) playerInput.enabled = false;
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
             
             SetInteractUIVisible(false); 
 
-            // ★追加：会話が始まったらメニューボタンを表示する！（ただしメニューが開いていない時だけ）
-            if (menuButton != null && !isMenuOpen) menuButton.SetActive(true);
+            bool isRadio = DialogueManager.Instance != null && DialogueManager.Instance.isRadioMode;
+            if (menuButton != null && !isMenuOpen && !isRadio) 
+            {
+                menuButton.SetActive(true);
+            }
         }
         else
         {
             if (!isMenuOpen)
             {
-                if (playerInput != null) playerInput.enabled = true;
-                Cursor.lockState = CursorLockMode.Locked;
-                Cursor.visible = false;
-                
-                SetInteractUIVisible(true);
+
+                bool isForcedCursor = (GameManager.Instance != null && GameManager.Instance.forceShowCursor);
+
+                if (!isForcedCursor)
+                {
+                    
+                    //if (playerInput != null) playerInput.enabled = true;
+                    Cursor.lockState = CursorLockMode.Locked;
+                    Cursor.visible = false;
+                    
+                    SetInteractUIVisible(true);
+                }
             }
 
-            // ★追加：会話が終わったら必ずメニューボタンを隠す
             if (menuButton != null) menuButton.SetActive(false);
         }
     }
-
     // ==========================================
     // メニューの開閉処理
     // ==========================================
@@ -291,7 +299,7 @@ public class UIManager : MonoBehaviour
             HideMessage();
             OpenMainPage();
 
-            if (playerInput != null) playerInput.enabled = false; 
+            //if (playerInput != null) playerInput.enabled = false; 
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
 
@@ -309,7 +317,7 @@ public class UIManager : MonoBehaviour
 
             if (isTalking)
             {
-                if (playerInput != null) playerInput.enabled = false;
+                //if (playerInput != null) playerInput.enabled = false;
                 Cursor.lockState = CursorLockMode.None;
                 Cursor.visible = true;
                 
@@ -322,7 +330,7 @@ public class UIManager : MonoBehaviour
             }
             else
             {
-                if (playerInput != null) playerInput.enabled = true;
+                //if (playerInput != null) playerInput.enabled = true;
                 Cursor.lockState = CursorLockMode.Locked;
                 Cursor.visible = false;
                 
@@ -367,9 +375,14 @@ public class UIManager : MonoBehaviour
 
     public void ShowInteractPrompt(string promptText)
     {
-        if ((DialogueManager.Instance != null && DialogueManager.Instance.isTalking) || isMenuOpen)
+
+        bool isTalking = DialogueManager.Instance != null && DialogueManager.Instance.isTalking;
+        bool isCursorVisible = Cursor.lockState == CursorLockMode.None;
+
+        if (isTalking || isMenuOpen || isCursorVisible)
         {
             if (interactPrompt != null) interactPrompt.SetActive(false);
+            if (crosshair != null) crosshair.SetActive(false); 
             return; 
         }
 
@@ -447,6 +460,7 @@ public class UIManager : MonoBehaviour
 
     public void SetInteractUIVisible(bool isVisible)
     {
+        if (isVisible && Cursor.lockState == CursorLockMode.None) return;
         if (crosshair != null) crosshair.SetActive(isVisible);
         if (interactPrompt != null) interactPrompt.SetActive(isVisible);
     }
@@ -486,23 +500,25 @@ public class UIManager : MonoBehaviour
 
     private void OnApplicationFocus(bool hasFocus)
     {
-        // hasFocus が true ＝ ゲーム画面に戻ってきた瞬間
+        // hasFocus が true ＝ ゲーム画面をクリックした（戻ってきた）瞬間
         if (hasFocus)
         {
-            // 今、会話中かどうかをチェック
             bool isTalking = (DialogueManager.Instance != null && DialogueManager.Instance.isTalking);
+            
 
-            // メニューが開いている、または会話中なら、カーソルを強制的に復活させる！
-            if (isMenuOpen || isTalking)
+            bool isForcedCursor = (GameManager.Instance != null && GameManager.Instance.forceShowCursor);
+
+            // メニューが開いている、会話中、または「操縦席に座っている」なら、カーソルを維持する！
+            if (isMenuOpen || isTalking || isForcedCursor)
             {
-                if (playerInput != null) playerInput.enabled = false;
+                //if (playerInput != null) playerInput.enabled = false;
                 Cursor.lockState = CursorLockMode.None;
                 Cursor.visible = true;
             }
             else
             {
-                // 通常のプレイ中なら、カーソルを隠してFPS操作に戻す
-                if (playerInput != null) playerInput.enabled = true;
+            
+                //if (playerInput != null) playerInput.enabled = true;
                 Cursor.lockState = CursorLockMode.Locked;
                 Cursor.visible = false;
             }

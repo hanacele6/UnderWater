@@ -76,6 +76,24 @@ public class SteeringConsole : MonoBehaviour, IInteractable
     {
         if (isPlayerPiloting && Input.GetKeyDown(KeyCode.Q) && transitionCoroutine == null)
         {
+
+            if (DialogueManager.Instance != null && 
+                DialogueManager.Instance.isTalking && 
+                DialogueManager.Instance.isRadioMode)
+            {
+                // プレイヤーに「なぜ降りられないのか」を伝える親切な警告ログを出す
+                if (SubmarineHUD.Instance != null) 
+                {
+                    SubmarineHUD.Instance.AddLog("システム警告: 通信中は席を離れることができません。", "#FF4444");
+                }
+                
+
+                // if (audioSource != null && errorSound != null) audioSource.PlayOneShot(errorSound);
+
+                return;
+            }
+
+            // 通信中でなければ、通常通り降りる
             StopPiloting();
         }
     }
@@ -161,6 +179,11 @@ public class SteeringConsole : MonoBehaviour, IInteractable
 
         ExecuteStartPilotingSettings();
         transitionCoroutine = null; 
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.TriggerInteractEvent("SteeringConsole");
+        }
     }
 
     private void ExecuteStartPilotingSettings()
@@ -174,6 +197,7 @@ public class SteeringConsole : MonoBehaviour, IInteractable
         SetAllBioAIActive(true);
    
         if (mapCanvas != null) mapCanvas.SetActive(true);
+        if (DialogueManager.Instance != null) DialogueManager.Instance.isRadioMode = true;
     }
 
     private IEnumerator StopPilotingSequence(bool hasCargo, SubmarineStatus subStatus)
@@ -252,6 +276,8 @@ public class SteeringConsole : MonoBehaviour, IInteractable
         
         SetAllBioAIActive(false);
 
+  
+        if (DialogueManager.Instance != null) DialogueManager.Instance.isRadioMode = false;
         if (GameManager.Instance != null) GameManager.Instance.UnlockPlayer();
         if (urpAsset != null) urpAsset.renderScale = 0.5f;
     }
