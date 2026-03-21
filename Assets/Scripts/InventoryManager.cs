@@ -13,10 +13,11 @@ public class InventoryManager : MonoBehaviour
     [Header("UI References")]
     public Transform contentParent; 
     public GameObject itemButtonPrefab; 
-    public TextMeshProUGUI itemDetailText;
+    public TextMeshProUGUI itemDetailNameText; 
+    public TextMeshProUGUI itemDetailDescText;
     public Image itemDetailIcon;
 
-    // ★変更：初期値を Goods（物品）に変更
+ 
     private ItemCategory currentDisplayCategory = ItemCategory.Goods; 
 
     private void Awake()
@@ -64,16 +65,38 @@ public class InventoryManager : MonoBehaviour
 
         ClearItemDetail(); 
 
-        List<ItemData> displayItems = inventoryList.Where(item => item.category == currentDisplayCategory).ToList();
+     
+        var groupedItems = inventoryList
+            .Where(item => item.category == currentDisplayCategory)
+            .GroupBy(item => item) // 同じアイテムデータでまとめる
+            .ToList();
 
-        foreach (ItemData item in displayItems)
+        foreach (var group in groupedItems)
         {
+            ItemData item = group.Key; // アイテムの種類
+            int itemCount = group.Count(); // そのアイテムを何個持っているか
+
             GameObject newButton = Instantiate(itemButtonPrefab, contentParent);
 
+            // ① アイテム名の表示
             TextMeshProUGUI buttonText = newButton.GetComponentInChildren<TextMeshProUGUI>();
             if (buttonText != null)
             {
                 buttonText.text = item.itemName;
+            }
+
+            // ② 個数の表示（例：「x3」）※プレハブに個数用のテキストを追加した場合
+            // Transform countTransform = newButton.transform.Find("CountText");
+            // if (countTransform != null)
+            // {
+            //     TextMeshProUGUI countText = countTransform.GetComponent<TextMeshProUGUI>();
+            //     countText.text = itemCount > 1 ? $"x{itemCount}" : ""; // 1個の時は数字を出さない
+            // }
+
+            // 名前の横に直接個数を足しちゃう
+            if (buttonText != null && itemCount > 1)
+            {
+                buttonText.text = $"{item.itemName} <color=#FFFF00>x{itemCount}</color>";
             }
 
             Button btn = newButton.GetComponent<Button>();
@@ -86,7 +109,8 @@ public class InventoryManager : MonoBehaviour
 
     public void ShowItemDetail(ItemData item)
     {
-        if (itemDetailText != null) itemDetailText.text = item.description; 
+        if (itemDetailNameText != null) itemDetailNameText.text = item.itemName;
+        if (itemDetailDescText != null) itemDetailDescText.text = item.description;
 
         if (itemDetailIcon != null)
         {
@@ -104,7 +128,17 @@ public class InventoryManager : MonoBehaviour
     
     public void ClearItemDetail()
     {
-        if (itemDetailText != null) itemDetailText.text = ""; 
-        if (itemDetailIcon != null) itemDetailIcon.enabled = false; 
+        if (itemDetailNameText != null) itemDetailNameText.text = ""; 
+        if (itemDetailDescText != null) itemDetailDescText.text = ""; 
+        if (itemDetailIcon != null) itemDetailIcon.enabled = false;
+    }
+
+    public void RemoveItem(ItemData itemToRemove)
+    {
+        if (inventoryList.Contains(itemToRemove))
+        {
+            inventoryList.Remove(itemToRemove);
+            UpdateInventoryUI(); 
+        }
     }
 }

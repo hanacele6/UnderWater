@@ -38,12 +38,13 @@ public class UIManager : MonoBehaviour
     [SerializeField] private float hideXPosition = 400f;
     [SerializeField] private float showXPosition = -20f;
     
-    // ==========================================
-    // 常時表示メインミッション＆会話UI
-    // ==========================================
+
     [Header("Main Mission HUD")]
     [SerializeField] private GameObject mainMissionPanel;       // 画面左上などに常時出すパネル（任意）
     [SerializeField] private TextMeshProUGUI mainMissionText;   // 「現在の目標：〇〇」を表示するテキスト
+
+    [Header("Phase UI")]
+    public GameObject phaseDisplayPanel;
 
     //[Header("Dialogue UI")]
     //[SerializeField] private GameObject dialoguePanel;          // 会話ウィンドウ全体
@@ -522,6 +523,26 @@ public class UIManager : MonoBehaviour
                 Cursor.lockState = CursorLockMode.Locked;
                 Cursor.visible = false;
             }
+        }
+    }
+
+    public void SetHUDVisible(bool isVisible)
+    {
+        SetMainMissionPanelVisible(isVisible);
+        SetInteractUIVisible(isVisible);
+
+        if (phaseDisplayPanel != null) phaseDisplayPanel.SetActive(isVisible);
+
+        if (!isVisible)
+        {
+            // 隠す時はメニューボタンも強制的に消す、メニューも開けなくする
+            if (menuButton != null) menuButton.SetActive(false);
+            canOpenMenu = false; 
+        }
+        else
+        {
+            // 戻す時はメニューを開けるようにする
+            canOpenMenu = true; 
         }
     }
 }

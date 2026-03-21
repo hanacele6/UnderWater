@@ -1,11 +1,23 @@
 using UnityEngine;
-
+using System.Collections.Generic;
 public enum ItemCategory
 {
     Goods,      // 物品
     Document,   // 文献
     Material,   // 素材
     Valuable    // 貴重品
+}
+
+public enum ItemTag
+{
+    None,
+    Meat,           // 肉組織
+    Plant,          // 植物・菌類
+    Toxic,          // 毒性
+    Bioluminescent, // 発光
+    Armored,        // 装甲・硬質
+    Electric,       // 帯電
+    Anomalous       // 異常物質（謎の成分）
 }
 
 // 右クリックメニューからこのデータを作成できるようにする魔法の1行
@@ -19,4 +31,11 @@ public class ItemData : ScriptableObject
 
     [Header("分類")]
     public ItemCategory category = ItemCategory.Material;
+
+    [Header("バイオ調合設定")]
+    [Tooltip("このアイテムを鍋に入れた時に追加される属性")]
+    public List<ItemTag> itemTags = new List<ItemTag>();
+
+    [Tooltip("この成分の濃さ（通常は1。強力なレア素材なら2や3にする）")]
+    public int potency = 1;
 }

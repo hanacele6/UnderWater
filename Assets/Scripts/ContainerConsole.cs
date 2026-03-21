@@ -8,28 +8,17 @@ public class ContainerConsole : MonoBehaviour, IInteractable
     public SubmarineStatus submarine;
     
     [Header("コンテナギミック設定")]
-    public Transform itemSpawnPoint;
-    public GameObject basePickupPrefab;
     public Animator containerAnimator; 
-    
-    [Tooltip("アニメーションが完了するまでの待機時間（秒）")]
     public float animationDuration = 1.0f; 
-    
-    [Tooltip("アイテムが弾け飛ぶ勢い")]
-    public float scatterForce = 3f; 
-
-    [Tooltip("アイテム放出後、フタが閉まり始めるまでの待機時間")]
-    public float closeDelay = 5.0f;
 
     [Header("ランダムアイテムのプール")]
     public ItemData[] randomItemPool;
 
-    private bool isOperating = false; // 演出中に連続で押せないようにするロック
+    private bool isOperating = false;
 
     public string GetInteractPrompt()
     {
         if (isOperating) return "処理中...";
-        
         if (submarine.cargoQueue.Count > 0) 
             return $"コンテナを引き上げる (回収物: {submarine.cargoQueue.Count}個)";
 
@@ -38,83 +27,61 @@ public class ContainerConsole : MonoBehaviour, IInteractable
 
     public void Interact()
     {
-        // 演出中、またはストックが無い場合は何もしない
         if (isOperating || submarine.cargoQueue.Count == 0) return;
-
-        // コルーチン（時間差処理）をスタート！
-        StartCoroutine(ExtractAllItemsRoutine());
+        StartCoroutine(ExtractUIProcessRoutine());
     }
 
-    private IEnumerator ExtractAllItemsRoutine()
+    private IEnumerator ExtractUIProcessRoutine()
     {
         isOperating = true;
 
-        // 1. アニメーションを再生（開く）
-        if (containerAnimator != null)
-        {
-            containerAnimator.SetTrigger("OpenTrigger");
-        }
-
-        // 2. 開ききるまで待つ
+        // 1. コンテナを開くアニメーション
+        if (containerAnimator != null) containerAnimator.SetTrigger("OpenTrigger");
         yield return new WaitForSeconds(animationDuration);
 
-        List<GameObject> spawnedItems = new List<GameObject>();
+        // 2. カーゴの中身を「リスト」として取り出す
+        List<ItemData> extractedItems = new List<ItemData>();
 
-        // 3. アイテムを全部出す
         while (submarine.cargoQueue.Count > 0)
         {
             ItemData extractedData = submarine.cargoQueue.Dequeue();
 
+            // ランダム補充ロジック
             if (extractedData == null && randomItemPool.Length > 0)
             {
                 int randomIndex = Random.Range(0, randomItemPool.Length);
                 extractedData = randomItemPool[randomIndex];
             }
 
-            GameObject newItem = Instantiate(basePickupPrefab, itemSpawnPoint.position, Random.rotation);
-            
-            PickupItem pickupScript = newItem.GetComponent<PickupItem>();
-            if (pickupScript != null) pickupScript.Initialize(extractedData);
-
-            Rigidbody rb = newItem.GetComponent<Rigidbody>();
-            if (rb != null)
+            if (extractedData != null)
             {
-                Vector3 scatterDir = Vector3.up + Random.insideUnitSphere * 0.5f;
-                rb.AddForce(scatterDir.normalized * scatterForce, ForceMode.Impulse);
-                rb.AddTorque(Random.insideUnitSphere * scatterForce, ForceMode.Impulse);
+                extractedItems.Add(extractedData);
             }
-
-            // ★追加：出したアイテムを監視リストに登録する
-            spawnedItems.Add(newItem);
         }
 
         // ==========================================
-        // すべてのアイテムが拾われるまで無限に待機する
+        // 3. UIを開き、プレイヤーが「回収ボタン」を押して閉じるまで待機する
         // ==========================================
-        // Unityでは Destroy() されたオブジェクトは null になるので、
-        // リストの中身が「すべて null」になるまでここで処理が一時停止します。
-        yield return new WaitUntil(() => 
-        {
-            foreach (GameObject item in spawnedItems)
-            {
-                if (item != null) return false; // まだ拾われていないアイテムが残っている！
-            }
-            return true; // 全て null になった（全部拾い終わった）！
-        });
+        bool isUIClosed = false;
 
-        // 4. 全て拾い終えたのを確認したら、指定した秒数（closeDelay）だけ余韻を残して待つ
-        yield return new WaitForSeconds(closeDelay);
-
-        // 5. 「閉じる」トリガーを引く
-        if (containerAnimator != null)
+        if (ExtractionUIManager.Instance != null)
         {
-            containerAnimator.SetTrigger("CloseTrigger");
+            // UI側にリストを渡し、「閉じられたら isUIClosed を true にしてね」と約束（コールバック）を渡す
+            ExtractionUIManager.Instance.OpenExtractionUI(extractedItems, () => { isUIClosed = true; });
         }
-        
-        // 6. 閉まりきるまで待つ
+        else
+        {
+            Debug.LogError("ExtractionUIManagerが見つかりません！");
+            isUIClosed = true; 
+        }
+
+        // UIが閉じられるまでここで無限に待つ（進行不能バグの心配なし！）
+        yield return new WaitUntil(() => isUIClosed);
+
+        // 4. コンテナを閉じるアニメーション
+        if (containerAnimator != null) containerAnimator.SetTrigger("CloseTrigger");
         yield return new WaitForSeconds(animationDuration);
 
-        // 全ての処理が終わったので、コンソールのロックを解除する
         isOperating = false; 
     }
 }
