@@ -263,24 +263,27 @@ public class SteeringConsole : MonoBehaviour, IInteractable
     }
 
     private void ExecuteStopPilotingSettings()
+{
+    isPlayerPiloting = false;
+    if (playerInput != null) playerInput.enabled = true; 
+    if (submarine != null) submarine.isPiloting = false; 
+    
+    SetAllBioAIActive(false);
+    if (DialogueManager.Instance != null) DialogueManager.Instance.isRadioMode = false;
+
+    
+    // ① 先にプレイヤーの操作制限を解除（ここでマウスカーソルが中央に固定されるはず）
+    if (GameManager.Instance != null) GameManager.Instance.UnlockPlayer();
+
+    // ② マウスカーソルが固定された後に、クロスヘアを表示させる！
+    if (UIManager.Instance != null) 
     {
-        isPlayerPiloting = false;
-        if (playerInput != null) playerInput.enabled = true; 
-        if (submarine != null) submarine.isPiloting = false; 
-
-        if (UIManager.Instance != null) 
-        {
-            UIManager.Instance.SetInteractUIVisible(true);
-            UIManager.Instance.canOpenMenu = true;
-        }
-        
-        SetAllBioAIActive(false);
-
-  
-        if (DialogueManager.Instance != null) DialogueManager.Instance.isRadioMode = false;
-        if (GameManager.Instance != null) GameManager.Instance.UnlockPlayer();
-        if (urpAsset != null) urpAsset.renderScale = 0.5f;
+        UIManager.Instance.SetInteractUIVisible(true);
+        UIManager.Instance.canOpenMenu = true;
     }
+
+    if (urpAsset != null) urpAsset.renderScale = 0.5f;
+}
 
     private IEnumerator TypeWriterEffect(string text)
     {

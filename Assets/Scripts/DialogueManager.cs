@@ -489,8 +489,9 @@ public class DialogueManager : MonoBehaviour
         foreach (UnityEngine.EventSystems.RaycastResult result in results)
         {
             // Buttonコンポーネントか、Toggleコンポーネントが付いているUIだけを「ボタン」とみなす！
-            if (result.gameObject.GetComponent<UnityEngine.UI.Button>() != null || 
-                result.gameObject.GetComponent<UnityEngine.UI.Toggle>() != null)
+            if (result.gameObject.GetComponentInParent<UnityEngine.UI.Button>() != null || 
+                result.gameObject.GetComponentInParent<UnityEngine.UI.Toggle>() != null)
+            
             {
                 return true; 
             }

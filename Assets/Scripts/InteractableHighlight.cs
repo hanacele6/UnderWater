@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 [DisallowMultipleComponent]
 public class InteractableHighlight : MonoBehaviour {
@@ -303,6 +304,12 @@ public class InteractableHighlight : MonoBehaviour {
           return;
       }
 
+
+      if (DialogueManager.Instance != null && DialogueManager.Instance.isTalking) {
+          ChangeHighlightState(HighlightState.None);
+          return;
+      }
+
       // 優先順位: 視線(Gaze) > 接近(Proximity) > 何もなし(None)
       if (isGazed) {
           ChangeHighlightState(HighlightState.Gaze);
@@ -311,6 +318,21 @@ public class InteractableHighlight : MonoBehaviour {
       } else {
           ChangeHighlightState(HighlightState.None);
       }
+  }
+
+private void OnMouseEnter() {
+      // カーソルが表示されている時だけ、視線(Gaze)として扱う
+      //if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) {
+      //    return; 
+      //}
+      if (Cursor.visible) {
+          SetGaze(true);
+      }
+  }
+
+  private void OnMouseExit() {
+      // カーソルが出ているかどうかにかかわらず、マウスが外れたら確実に消す
+      SetGaze(false);
   }
 
 }
