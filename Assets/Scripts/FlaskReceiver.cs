@@ -6,9 +6,12 @@ public class FlaskReceiver : MonoBehaviour
 {
     public static FlaskReceiver Instance;
 
-    [Header("フラスコの設定（液体）")]
-    public Image flaskLiquidUI;
-    public RectTransform openingPoint;
+    [Header("フラスコの設定（3D液体）")]
+    [Tooltip("フラスコの中の液体メッシュをアサイン")]
+    public Renderer liquidRenderer; 
+    [Tooltip("フラスコの口（注がれる判定の位置）")]
+    public Transform openingPoint; 
+    
     public float currentLiquidAmount = 0f;
     public float maxLiquidAmount = 100f;
     public bool IsFull => currentLiquidAmount >= maxLiquidAmount;
@@ -20,16 +23,33 @@ public class FlaskReceiver : MonoBehaviour
     [Header("遠心分離・かき混ぜ設定")]
     [Range(0, 100)]
     public float mixProgress = 0f;
-    public Image mixProgressUI; // もしプログレスバーを出すなら（アサインしなくてもOK）
+    public Image mixProgressUI; 
 
     [Header("完成品データベース")]
     public List<GrownSampleData> allRecipes = new List<GrownSampleData>();
     public GrownSampleData defaultSludge; 
 
+    private const string FillLevelProp = "_FillLevel";
+    private Material liquidMat;
+
     private void Awake()
     {
-        Instance = this;
-        if (flaskLiquidUI != null) flaskLiquidUI.fillAmount = 0f;
+        Instance = this; 
+    }
+
+    private void Start()
+    {
+        if (liquidRenderer != null)
+        {
+            liquidMat = liquidRenderer.material;
+            
+            currentLiquidAmount = 0f; 
+            UpdateShaderFillLevel(); 
+        }
+        else
+        {
+            Debug.LogError("Liquid Renderer");
+        }
     }
 
     // ==========================================
@@ -42,9 +62,27 @@ public class FlaskReceiver : MonoBehaviour
         currentLiquidAmount += amount;
         currentLiquidAmount = Mathf.Clamp(currentLiquidAmount, 0, maxLiquidAmount);
 
-        if (flaskLiquidUI != null) flaskLiquidUI.fillAmount = currentLiquidAmount / maxLiquidAmount;
+        UpdateShaderFillLevel();
 
         if (IsFull) Debug.Log("フラスコに特殊細菌が満たされました！");
+    }
+
+    private void UpdateShaderFillLevel()
+    {
+        if (liquidMat != null && liquidRenderer != null)
+        {
+            float ratio = currentLiquidAmount / maxLiquidAmount;
+            
+            // Unityのバウンディングボックスから一番下と一番上を取得
+            float bottomY = liquidRenderer.bounds.min.y;
+            float topY = liquidRenderer.bounds.max.y;
+            
+            // 割合に応じた絶対的な高さを算出
+            float currentFillY = Mathf.Lerp(bottomY, topY, ratio);
+
+                       
+            liquidMat.SetFloat(FillLevelProp, currentFillY);
+        }
     }
 
     // ==========================================
@@ -64,19 +102,16 @@ public class FlaskReceiver : MonoBehaviour
     }
 
     // ==========================================
-    // 3. ぐるぐる回す（遠心分離/撹拌）
+    // 3. ぐるぐる回す
     // ==========================================
     public void AddMixProgress(float amount)
     {
-        // 液体が満タンじゃない、または素材が1つも入っていない時は反応しない！
         if (!IsFull || addedItems.Count == 0) return;
 
         mixProgress += amount;
         mixProgress = Mathf.Clamp(mixProgress, 0, 100f);
 
         if (mixProgressUI != null) mixProgressUI.fillAmount = mixProgress / 100f;
-
-        // ★ここでフラスコの中身の色を少しずつ変えたり、ブクブク泡立たせると最高です
 
         if (mixProgress >= 100f) CompleteSynthesis();
     }
@@ -108,13 +143,11 @@ public class FlaskReceiver : MonoBehaviour
 
         Debug.Log($"完成したタネ：【{result.sampleName}】（培養に {result.daysToGrow} 日かかります）");
 
-        // ★ここでインベントリか、培養ポッドにタネを送る処理！
-
-        // 終わったらフラスコを空っぽにする
         addedItems.Clear();
         currentTags.Clear();
         currentLiquidAmount = 0f;
-        if (flaskLiquidUI != null) flaskLiquidUI.fillAmount = 0f;
+        
+        UpdateShaderFillLevel();
     }
 
     private bool CheckRecipeCondition(GrownSampleData recipe)

@@ -14,9 +14,18 @@ public class TestTube3D : MonoBehaviour
     [Tooltip("1秒間に注ぐ量")]
     public float pourRatePerSecond = 30f;
     [Tooltip("フラスコの口にどれくらい近づけたら注ぐか")]
-    public float pourDistance = 0.5f; // 3D空間の距離なので小さめ（0.5mなど）
-    [Tooltip("注ぐ時の試験管の傾き（X, Y, Z）")]
-    public Vector3 tiltRotation = new Vector3(0, 0, 45f); // 右に傾ける
+    public float pourDistance = 0.5f; 
+    
+    [Tooltip("注ぐ時の「最大」傾き（X, Y, Z）")]
+    public Vector3 maxTiltRotation = new Vector3(0, 0, 75f); // 少し深めに設定
+    [Tooltip("傾くスピード")]
+    public float tiltSpeed = 5f;
+
+    [Header("3Dシェーダー・演出設定")]
+    [Tooltip("試験管の中の液体メッシュ（Renderer）をアサイン")]
+    public Renderer liquidRenderer;
+    [Tooltip("口に付けた注ぐ水流（Particle System）をアサイン")]
+    public ParticleSystem pourParticles;
 
     // ドラッグ用変数
     private Vector3 screenPoint;
@@ -25,14 +34,25 @@ public class TestTube3D : MonoBehaviour
     private Quaternion startRotation;
     private bool isDragging = false;
 
+    // シェーダー制御用変数
+    private const string FillLevelProp = "_FillLevel";
+    private Material liquidMat;
+    private float initialMeshHeight;
+
     void Start()
     {
         currentLiquid = maxLiquid;
         startPosition = transform.position;
         startRotation = transform.rotation;
         
-        // カメラがセットされていなければ、自動で探す
         if (deskCamera == null) deskCamera = GameObject.Find("DeskCamera").GetComponent<Camera>();
+
+        if (liquidRenderer != null)
+        {
+            liquidMat = liquidRenderer.material;
+            initialMeshHeight = liquidRenderer.bounds.size.y;
+            UpdateShaderFillLevel(); // 最初は満タンの見た目にする
+        }
     }
 
     // ==========================================
@@ -40,13 +60,12 @@ public class TestTube3D : MonoBehaviour
     // ==========================================
     void OnMouseDown()
     {
-        // UI（会話やメニュー）の上なら掴まない
+        if (currentLiquid <= 0f) return;
         if (UnityEngine.EventSystems.EventSystem.current != null && 
             UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()) return;
 
         isDragging = true;
         
-        // 3D空間の座標を、画面上の座標に変換してズレ（offset）を計算
         screenPoint = deskCamera.WorldToScreenPoint(gameObject.transform.position);
         offset = gameObject.transform.position - deskCamera.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, screenPoint.z));
     }
@@ -58,35 +77,50 @@ public class TestTube3D : MonoBehaviour
     {
         if (!isDragging) return;
 
-        // マウスの位置に合わせて試験管を空中で移動させる
         Vector3 cursorPoint = new Vector3(Input.mousePosition.x, Input.mousePosition.y, screenPoint.z);
         Vector3 cursorPosition = deskCamera.ScreenToWorldPoint(cursorPoint) + offset;
         transform.position = cursorPosition;
 
         // ---------- フラスコに注ぐ判定 ----------
-        if (currentLiquid > 0 && flaskReceiver != null && !flaskReceiver.IsFull)
+        if (flaskReceiver != null)
         {
-            // 試験管とフラスコの口の距離を測る
             float distance = Vector3.Distance(transform.position, flaskReceiver.openingPoint.position);
 
             if (distance <= pourDistance)
             {
-                // ① 傾ける
-                transform.rotation = Quaternion.Euler(tiltRotation);
+                float tiltRatio = 1.0f - (distance / pourDistance); 
+                Quaternion targetRot = Quaternion.Euler(maxTiltRotation);
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, Time.deltaTime * tiltSpeed);
 
-                // ② 液体を減らして、フラスコに送る
-                float amountToPour = pourRatePerSecond * Time.deltaTime;
-                if (currentLiquid < amountToPour) amountToPour = currentLiquid;
-                
-                currentLiquid -= amountToPour;
-                flaskReceiver.ReceiveLiquid(amountToPour);
 
-                // ここで音や、液体のパーティクルを出す
+                if (currentLiquid > 0f && !flaskReceiver.IsFull)
+                {
+                    if (pourParticles != null && !pourParticles.isPlaying) pourParticles.Play();
+
+                    float amountToPour = pourRatePerSecond * Time.deltaTime;
+                    if (currentLiquid < amountToPour) amountToPour = currentLiquid;
+                    
+                    currentLiquid -= amountToPour;
+                    flaskReceiver.ReceiveLiquid(amountToPour);
+                    UpdateShaderFillLevel();
+
+                    if (currentLiquid <= 0f)
+                    {
+                        currentLiquid = 0f; // 絶対にマイナスにさせない
+                        if (pourParticles != null) pourParticles.Stop();
+                        Debug.Log("試験管が完全に空になりました！");
+                    }
+                }
+                else
+                {
+                    // 空っぽ、またはフラスコが満タンの場合は絶対にパーティクルを出さない
+                    if (pourParticles != null && pourParticles.isPlaying) pourParticles.Stop();
+                }
             }
             else
             {
-                // 離れたら傾きを元に戻す
-                transform.rotation = startRotation;
+                transform.rotation = Quaternion.Slerp(transform.rotation, startRotation, Time.deltaTime * tiltSpeed);
+                if (pourParticles != null && pourParticles.isPlaying) pourParticles.Stop();
             }
         }
     }
@@ -99,8 +133,30 @@ public class TestTube3D : MonoBehaviour
         if (!isDragging) return;
         isDragging = false;
 
-        // 試験管立ての位置と傾きにカチャッと戻す
+        // 手を離したら瞬時にカチャッと元の位置・角度に戻る
         transform.position = startPosition;
         transform.rotation = startRotation;
+
+        // パーティクルを確実に止める
+        if (pourParticles != null && pourParticles.isPlaying) pourParticles.Stop();
+    }
+
+
+    private void UpdateShaderFillLevel()
+    {
+        if (liquidMat != null)
+        {
+            float ratio = currentLiquid / maxLiquid;
+            
+            // 変化してしまう bounds は使わず、記憶しておいた本来の高さを使う
+            float halfHeight = initialMeshHeight / 2.0f;
+            
+            // 中心(0)を基準にした、現在の水位（-halfHeight 〜 +halfHeight）
+            float localFillY = -halfHeight + (initialMeshHeight * ratio);
+            
+            // Shader Graph側で「オブジェクト位置からの引き算」をしているため、
+            // transform.position.y を足す必要がなくなりました！そのまま送るだけ！
+            liquidMat.SetFloat(FillLevelProp, localFillY);
+        }
     }
 }
