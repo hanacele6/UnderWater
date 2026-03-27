@@ -12,6 +12,8 @@ public class FlaskReceiver : MonoBehaviour
     [Tooltip("フラスコの口（注がれる判定の位置）")]
     public Transform openingPoint; 
     
+    [Tooltip("フラスコの底（空オブジェクトをアサイン）")]
+    public Transform bottomPoint;    
     public float currentLiquidAmount = 0f;
     public float maxLiquidAmount = 100f;
     public bool IsFull => currentLiquidAmount >= maxLiquidAmount;
@@ -69,19 +71,14 @@ public class FlaskReceiver : MonoBehaviour
 
     private void UpdateShaderFillLevel()
     {
-        if (liquidMat != null && liquidRenderer != null)
+        if (liquidMat != null && bottomPoint != null && openingPoint != null)
         {
             float ratio = currentLiquidAmount / maxLiquidAmount;
             
-            // Unityのバウンディングボックスから一番下と一番上を取得
-            float bottomY = liquidRenderer.bounds.min.y;
-            float topY = liquidRenderer.bounds.max.y;
+            // 空オブジェクトのワールド座標YをそのままLerpする
+            float currentWorldY = Mathf.Lerp(bottomPoint.position.y, openingPoint.position.y, ratio);
             
-            // 割合に応じた絶対的な高さを算出
-            float currentFillY = Mathf.Lerp(bottomY, topY, ratio);
-
-                       
-            liquidMat.SetFloat(FillLevelProp, currentFillY);
+            liquidMat.SetFloat(FillLevelProp, currentWorldY);
         }
     }
 

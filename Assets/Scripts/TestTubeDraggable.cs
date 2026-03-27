@@ -39,21 +39,32 @@ public class TestTube3D : MonoBehaviour
     private Material liquidMat;
     private float initialMeshHeight;
 
+    private float localBottomY;
+    private float localTopY;
+
     void Start()
     {
-        currentLiquid = maxLiquid;
+        //currentLiquid = maxLiquid;
         startPosition = transform.position;
         startRotation = transform.rotation;
         
         if (deskCamera == null) deskCamera = GameObject.Find("DeskCamera").GetComponent<Camera>();
+        if (liquidRenderer != null) liquidMat = liquidRenderer.material;
+    }
 
-        if (liquidRenderer != null)
+    void Update()
+    {
+        if (liquidMat != null && liquidRenderer != null)
         {
-            liquidMat = liquidRenderer.material;
-            initialMeshHeight = liquidRenderer.bounds.size.y;
-            UpdateShaderFillLevel(); // 最初は満タンの見た目にする
+            float ratio = currentLiquid / maxLiquid;
+            
+            // 試験管が傾いて bounds（枠）が縮んでも、常にその時の下と上を使ってLerpする！
+            float currentWorldY = Mathf.Lerp(liquidRenderer.bounds.min.y, liquidRenderer.bounds.max.y, ratio);
+            
+            liquidMat.SetFloat(FillLevelProp, currentWorldY);
         }
     }
+
 
     // ==========================================
     // 1. マウスで掴んだ瞬間
@@ -148,14 +159,8 @@ public class TestTube3D : MonoBehaviour
         {
             float ratio = currentLiquid / maxLiquid;
             
-            // 変化してしまう bounds は使わず、記憶しておいた本来の高さを使う
-            float halfHeight = initialMeshHeight / 2.0f;
+            float localFillY = Mathf.Lerp(localBottomY, localTopY, ratio);
             
-            // 中心(0)を基準にした、現在の水位（-halfHeight 〜 +halfHeight）
-            float localFillY = -halfHeight + (initialMeshHeight * ratio);
-            
-            // Shader Graph側で「オブジェクト位置からの引き算」をしているため、
-            // transform.position.y を足す必要がなくなりました！そのまま送るだけ！
             liquidMat.SetFloat(FillLevelProp, localFillY);
         }
     }
