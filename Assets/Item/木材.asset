@@ -18,3 +18,5 @@ MonoBehaviour:
   category: 2
   itemTags: 02000000
   potency: 1
+  dropPrefab: {fileID: 7746560347920937723, guid: 18caf92b2cddc744a8e93a3e6d1aeb19, type: 3}
+  materialColor: {r: 0.5283019, g: 0.2780304, b: 0, a: 1}

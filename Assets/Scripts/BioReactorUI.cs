@@ -17,6 +17,12 @@ public class BioReactorUI : MonoBehaviour
     public Transform ingredientListParent; 
     public GameObject ingredientButtonPrefab; 
 
+    [Header("3D落下ギミック")]
+    [Tooltip("フラスコ上空の落下地点（空オブジェクトをアサイン）")]
+    public Transform dropPoint; 
+    [Tooltip("アイテム専用モデルがない時に落とす汎用プレハブ")]
+    public GameObject defaultDropPrefab;
+
 
     private Action onCloseCallback;
 
@@ -80,12 +86,31 @@ public class BioReactorUI : MonoBehaviour
 
     private void OnIngredientClicked(ItemData item)
     {
-        FlaskReceiver.Instance.AddIngredient(item);
         InventoryManager.Instance.RemoveItem(item);
         RefreshIngredientList(); 
 
-        // ※もし「1個入れたら自動でリストを閉じたい」場合は、ここで以下を呼びます
-        // if (ingredientScrollView != null) ingredientScrollView.SetActive(false);
+        if (dropPoint != null)
+        {
+            GameObject prefabToDrop = item.dropPrefab != null ? item.dropPrefab : defaultDropPrefab;
+
+            if (prefabToDrop != null)
+            {
+                // 決定したプレハブを、フラスコの上空にランダムな角度で生成
+                GameObject droppedObj = Instantiate(prefabToDrop, dropPoint.position, UnityEngine.Random.rotation);
+                
+                // 落下物に「君はこのアイテムのデータだよ」と教え込む
+                IngredientObject ingredientScript = droppedObj.GetComponent<IngredientObject>();
+                if (ingredientScript != null)
+                {
+                    ingredientScript.ingredientData = item; 
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"{item.itemName} の落下プレハブがないため、直接フラスコに投入しました。");
+                FlaskReceiver.Instance.AddIngredient(item);
+            }
+        }
     }
 
     public void CloseUI()

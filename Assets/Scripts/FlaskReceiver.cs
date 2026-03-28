@@ -1,22 +1,21 @@
 using UnityEngine;
 using UnityEngine.UI;
 using System.Collections.Generic;
+using System.Collections;
+using System;
 
 public class FlaskReceiver : MonoBehaviour
 {
     public static FlaskReceiver Instance;
 
     [Header("フラスコの設定（3D液体）")]
-    [Tooltip("フラスコの中の液体メッシュをアサイン")]
     public Renderer liquidRenderer; 
-    [Tooltip("フラスコの口（注がれる判定の位置）")]
     public Transform openingPoint; 
-    
-    [Tooltip("フラスコの底（空オブジェクトをアサイン）")]
     public Transform bottomPoint;    
     public float currentLiquidAmount = 0f;
     public float maxLiquidAmount = 100f;
-    public bool IsFull => currentLiquidAmount >= maxLiquidAmount;
+    // 0.1fの誤差を許容して満タン判定をゆるくしました
+    public bool IsFull => currentLiquidAmount >= (maxLiquidAmount - 0.1f);
 
     [Header("フラスコの内容物（固体・成分）")]
     public List<ItemData> addedItems = new List<ItemData>();
@@ -34,6 +33,17 @@ public class FlaskReceiver : MonoBehaviour
     private const string FillLevelProp = "_FillLevel";
     private Material liquidMat;
 
+    [Header("エフェクト設定")]
+    public ParticleSystem bubbleParticles;
+    public float colorMixDuration = 2.0f;
+
+    private Color defaultColor = new Color(0.2f, 1.0f, 1.0f, 1.0f); 
+    private static readonly int BaseColorProp = Shader.PropertyToID("_BaseColor");
+    private static readonly int TargetColorProp = Shader.PropertyToID("_TargetColor");
+    private static readonly int MarbleProgressProp = Shader.PropertyToID("_MarbleProgress");
+
+    private Coroutine mixColorCoroutine;
+
     private void Awake()
     {
         Instance = this; 
@@ -41,32 +51,36 @@ public class FlaskReceiver : MonoBehaviour
 
     private void Start()
     {
+        if (mixProgressUI != null) mixProgressUI.gameObject.SetActive(false);
+
         if (liquidRenderer != null)
         {
             liquidMat = liquidRenderer.material;
-            
+            if (liquidMat != null)
+            {
+                liquidMat.SetColor(BaseColorProp, defaultColor);
+                liquidMat.SetColor(TargetColorProp, defaultColor);
+                liquidMat.SetFloat(MarbleProgressProp, 1f); 
+            }
             currentLiquidAmount = 0f; 
             UpdateShaderFillLevel(); 
         }
-        else
+    }
+
+    private void Update()
+    {
+        // 持ち上げられても常に液体が追従するようにする
+        if (liquidMat != null && bottomPoint != null && openingPoint != null)
         {
-            Debug.LogError("Liquid Renderer");
+            UpdateShaderFillLevel();
         }
     }
 
-    // ==========================================
-    // 1. 液体（特殊細菌）を受け取る
-    // ==========================================
     public void ReceiveLiquid(float amount)
     {
         if (IsFull) return;
-
         currentLiquidAmount += amount;
         currentLiquidAmount = Mathf.Clamp(currentLiquidAmount, 0, maxLiquidAmount);
-
-        UpdateShaderFillLevel();
-
-        if (IsFull) Debug.Log("フラスコに特殊細菌が満たされました！");
     }
 
     private void UpdateShaderFillLevel()
@@ -74,33 +88,66 @@ public class FlaskReceiver : MonoBehaviour
         if (liquidMat != null && bottomPoint != null && openingPoint != null)
         {
             float ratio = currentLiquidAmount / maxLiquidAmount;
-            
-            // 空オブジェクトのワールド座標YをそのままLerpする
             float currentWorldY = Mathf.Lerp(bottomPoint.position.y, openingPoint.position.y, ratio);
-            
             liquidMat.SetFloat(FillLevelProp, currentWorldY);
         }
     }
 
-    // ==========================================
-    // 2. 素材（アイテム）を受け取る
-    // ==========================================
     public void AddIngredient(ItemData item)
     {
         addedItems.Add(item);
+
+        if (bubbleParticles != null) bubbleParticles.Play();
+
+        Color totalColor = Color.clear;
+        foreach (var added in addedItems)
+        {
+            totalColor += added.materialColor;
+        }
+        Color targetColor = totalColor / addedItems.Count;
+
+        if (mixColorCoroutine != null) StopCoroutine(mixColorCoroutine);
+        mixColorCoroutine = StartCoroutine(SmoothColorMix(targetColor));
 
         foreach (ItemTag tag in item.itemTags)
         {
             if (currentTags.ContainsKey(tag)) currentTags[tag] += item.potency;
             else currentTags.Add(tag, item.potency);
         }
-
-        Debug.Log($"フラスコに {item.itemName} を投入した！");
     }
 
-    // ==========================================
-    // 3. ぐるぐる回す
-    // ==========================================
+    private IEnumerator SmoothColorMix(Color targetColor)
+    {
+        Color currentBase = liquidMat.GetColor(TargetColorProp); 
+        
+        if (liquidMat != null)
+        {
+            liquidMat.SetColor(BaseColorProp, currentBase);
+            liquidMat.SetColor(TargetColorProp, targetColor);
+            liquidMat.SetFloat(MarbleProgressProp, 0f); 
+        }
+
+        float elapsed = 0f;
+        while (elapsed < colorMixDuration)
+        {
+            elapsed += Time.deltaTime;
+            float rawProgress = elapsed / colorMixDuration;
+            float smoothProgress = Mathf.SmoothStep(0f, 1f, rawProgress);
+            smoothProgress = Mathf.SmoothStep(0f, 1f, smoothProgress); 
+
+            if (liquidMat != null) liquidMat.SetFloat(MarbleProgressProp, smoothProgress);
+            yield return null; 
+        }
+
+        if (liquidMat != null) liquidMat.SetFloat(MarbleProgressProp, 1f); 
+    }
+
+    // Shakerからゲージの表示・非表示を操作できるようにする
+    public void SetProgressBarVisible(bool isVisible)
+    {
+        if (mixProgressUI != null) mixProgressUI.gameObject.SetActive(isVisible);
+    }
+
     public void AddMixProgress(float amount)
     {
         if (!IsFull || addedItems.Count == 0) return;
@@ -113,52 +160,90 @@ public class FlaskReceiver : MonoBehaviour
         if (mixProgress >= 100f) CompleteSynthesis();
     }
 
-    // ==========================================
-    // 4. 調合完了時の判定
-    // ==========================================
     private void CompleteSynthesis()
     {
-        Debug.Log("化学反応完了！！");
+        // ① 絶対に一番最初にUIと進行度をゼロに戻して隠す
         mixProgress = 0f; 
-
-        GrownSampleData result = null;
-        int highestPriority = -1;
-
-        foreach (var recipe in allRecipes)
+        if (mixProgressUI != null)
         {
-            if (CheckRecipeCondition(recipe))
-            {
-                if (recipe.priority > highestPriority)
-                {
-                    result = recipe;
-                    highestPriority = recipe.priority;
-                }
-            }
+            mixProgressUI.fillAmount = 0f;
+            mixProgressUI.gameObject.SetActive(false);
         }
 
-        if (result == null) result = defaultSludge;
+        // ② try〜finallyブロックで、エラーが起きても「必ず最後は空っぽにする」ことを保証する
+        try
+        {
+            GrownSampleData result = null;
+            int highestPriority = -1;
 
-        Debug.Log($"完成したタネ：【{result.sampleName}】（培養に {result.daysToGrow} 日かかります）");
+            if (allRecipes != null)
+            {
+                foreach (var recipe in allRecipes)
+                {
+                    if (recipe != null && CheckRecipeCondition(recipe))
+                    {
+                        if (recipe.priority > highestPriority)
+                        {
+                            result = recipe;
+                            highestPriority = recipe.priority;
+                        }
+                    }
+                }
+            }
 
-        addedItems.Clear();
-        currentTags.Clear();
-        currentLiquidAmount = 0f;
-        
-        UpdateShaderFillLevel();
+            if (result == null) result = defaultSludge;
+
+            if (result != null)
+                Debug.Log($"完成したタネ：【{result.sampleName}】");
+            else
+                Debug.LogWarning("注意：インスペクターの Default Sludge が設定されていません！");
+        }
+        catch (Exception e)
+        {
+            // レシピ判定でエラーが起きても、ここでエラーログだけ出してゲームを止めない
+            Debug.LogError($"調合の判定中にエラーが発生しましたが、処理を続行します: {e.Message}");
+        }
+        finally
+        {
+            // ③ 【超重要】上の処理で何が起きようと、必ずここが実行されてフラスコが空になる！
+            addedItems.Clear();
+            currentTags.Clear();
+            currentLiquidAmount = 0f;
+            UpdateShaderFillLevel();
+        }
     }
 
     private bool CheckRecipeCondition(GrownSampleData recipe)
     {
-        foreach (var badTag in recipe.forbiddenTags)
-        {
-            if (currentTags.ContainsKey(badTag) && currentTags[badTag] > 0) return false;
-        }
+        if (recipe == null) return false;
 
-        foreach (var req in recipe.requiredTags)
+        // タグが空っぽ（Null）でもエラーにならないようにする安全装置
+        if (recipe.forbiddenTags != null)
         {
-            if (!currentTags.ContainsKey(req.requiredTag)) return false; 
-            if (currentTags[req.requiredTag] < req.requiredAmount) return false; 
+            foreach (var badTag in recipe.forbiddenTags)
+            {
+                if (badTag != null && currentTags.ContainsKey(badTag) && currentTags[badTag] > 0) return false;
+            }
+        }
+        if (recipe.requiredTags != null)
+        {
+            foreach (var req in recipe.requiredTags)
+            {
+                if (req.requiredTag == null) continue;
+                if (!currentTags.ContainsKey(req.requiredTag)) return false; 
+                if (currentTags[req.requiredTag] < req.requiredAmount) return false; 
+            }
         }
         return true; 
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        IngredientObject droppedIngredient = other.GetComponent<IngredientObject>();
+        if (droppedIngredient != null && droppedIngredient.ingredientData != null)
+        {
+            AddIngredient(droppedIngredient.ingredientData);
+            Destroy(other.gameObject);
+        }
     }
 }

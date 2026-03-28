@@ -38,4 +38,12 @@ public class ItemData : ScriptableObject
 
     [Tooltip("この成分の濃さ（通常は1。強力なレア素材なら2や3にする）")]
     public int potency = 1;
+
+    [Header("3D設定")]
+    [Tooltip("フラスコに投入した時に落下する3Dモデルのプレハブ")]
+    public GameObject dropPrefab;
+
+    [Header("調合時の色設定")]
+    [Tooltip("フラスコに投入した時に液体に混ざる色")]
+    public Color materialColor = Color.white;
 }
