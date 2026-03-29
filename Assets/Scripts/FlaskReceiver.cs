@@ -24,7 +24,8 @@ public class FlaskReceiver : MonoBehaviour
     [Header("遠心分離・かき混ぜ設定")]
     [Range(0, 100)]
     public float mixProgress = 0f;
-    public Image mixProgressUI; 
+    public GameObject progressBarRoot; // 親（背景）のアタッチ用
+    public Image progressFillImage;    // 子（ゲージ中身）のアタッチ用
 
     [Header("完成品データベース")]
     public List<GrownSampleData> allRecipes = new List<GrownSampleData>();
@@ -51,7 +52,7 @@ public class FlaskReceiver : MonoBehaviour
 
     private void Start()
     {
-        if (mixProgressUI != null) mixProgressUI.gameObject.SetActive(false);
+        if (progressBarRoot != null) progressBarRoot.gameObject.SetActive(false);
 
         if (liquidRenderer != null)
         {
@@ -67,9 +68,8 @@ public class FlaskReceiver : MonoBehaviour
         }
     }
 
-    private void Update()
+    private void LateUpdate() 
     {
-        // 持ち上げられても常に液体が追従するようにする
         if (liquidMat != null && bottomPoint != null && openingPoint != null)
         {
             UpdateShaderFillLevel();
@@ -87,6 +87,12 @@ public class FlaskReceiver : MonoBehaviour
     {
         if (liquidMat != null && bottomPoint != null && openingPoint != null)
         {
+            if (currentLiquidAmount <= 0.01f) 
+            {
+                liquidMat.SetFloat(FillLevelProp, bottomPoint.position.y - 5.0f);
+                return;
+            }
+
             float ratio = currentLiquidAmount / maxLiquidAmount;
             float currentWorldY = Mathf.Lerp(bottomPoint.position.y, openingPoint.position.y, ratio);
             liquidMat.SetFloat(FillLevelProp, currentWorldY);
@@ -145,30 +151,32 @@ public class FlaskReceiver : MonoBehaviour
     // Shakerからゲージの表示・非表示を操作できるようにする
     public void SetProgressBarVisible(bool isVisible)
     {
-        if (mixProgressUI != null) mixProgressUI.gameObject.SetActive(isVisible);
+        if (progressBarRoot != null) progressBarRoot.SetActive(isVisible);
     }
 
+    private bool isProcessingSynthesis = false;
     public void AddMixProgress(float amount)
     {
-        if (!IsFull || addedItems.Count == 0) return;
+        if (!IsFull || addedItems.Count == 0 || isProcessingSynthesis) return;
 
         mixProgress += amount;
         mixProgress = Mathf.Clamp(mixProgress, 0, 100f);
 
-        if (mixProgressUI != null) mixProgressUI.fillAmount = mixProgress / 100f;
+        if (progressFillImage != null) progressFillImage.fillAmount = mixProgress / 100f;
 
-        if (mixProgress >= 100f) CompleteSynthesis();
+        if (mixProgress >= 100f) 
+    {
+        isProcessingSynthesis = true; // ロック
+        CompleteSynthesis();
+    }
     }
 
     private void CompleteSynthesis()
     {
         // ① 絶対に一番最初にUIと進行度をゼロに戻して隠す
         mixProgress = 0f; 
-        if (mixProgressUI != null)
-        {
-            mixProgressUI.fillAmount = 0f;
-            mixProgressUI.gameObject.SetActive(false);
-        }
+        if (progressFillImage != null) progressFillImage.fillAmount = 0f;
+        if (progressBarRoot != null) progressBarRoot.SetActive(false);
 
         // ② try〜finallyブロックで、エラーが起きても「必ず最後は空っぽにする」ことを保証する
         try
@@ -210,6 +218,7 @@ public class FlaskReceiver : MonoBehaviour
             currentTags.Clear();
             currentLiquidAmount = 0f;
             UpdateShaderFillLevel();
+            isProcessingSynthesis = false;
         }
     }
 

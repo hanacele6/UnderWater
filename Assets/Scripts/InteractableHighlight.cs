@@ -1,5 +1,5 @@
-//  Outline.cs
-//  QuickOutline (Modified for Interactable Integration)
+//  Outline.cs
+//  QuickOutline (Modified for Interactable Integration)
 
 using System;
 using System.Collections.Generic;
@@ -9,330 +9,310 @@ using UnityEngine.EventSystems;
 
 [DisallowMultipleComponent]
 public class InteractableHighlight : MonoBehaviour {
-  private static HashSet<Mesh> registeredMeshes = new HashSet<Mesh>();
+    private static HashSet<Mesh> registeredMeshes = new HashSet<Mesh>();
 
-  public enum Mode {
-    OutlineAll,
-    OutlineVisible,
-    OutlineHidden,
-    OutlineAndSilhouette,
-    SilhouetteOnly
-  }
-
-  // ==========================================
-  // ★追加：ハイライトの状態を定義
-  // ==========================================
-  public enum HighlightState {
-    None,       // 光っていない
-    Proximity,  // 近づいた（接近）
-    Gaze        // 視線が合った（注視）
-  }
-
-  // ==========================================
-  // インタラクト用の統合変数
-  // ==========================================
-  [Header("Highlight Settings")]
-  [Tooltip("このオブジェクトが現在光ることを許可されているか")]
-  public bool isHighlightable = true; 
-
-  [Tooltip("プレイヤーが近づいた時のフチ取り色")]
-  public Color proximityColor = new Color(1f, 1f, 1f, 0.5f); // デフォルトは半透明の白
-  
-  [Tooltip("プレイヤーの視線が合った時のフチ取り色")]
-  public Color gazeColor = Color.yellow; // デフォルトは黄色
-
-  // 現在の状態を保持
-  private HighlightState currentState = HighlightState.None;
-
-  public Mode OutlineMode {
-    get { return outlineMode; }
-    set {
-      outlineMode = value;
-      needsUpdate = true;
+    public enum Mode {
+        OutlineAll,
+        OutlineVisible,
+        OutlineHidden,
+        OutlineAndSilhouette,
+        SilhouetteOnly
     }
-  }
 
-  public Color OutlineColor {
-    get { return outlineColor; }
-    set {
-      outlineColor = value;
-      needsUpdate = true;
+    public enum HighlightState {
+        None,       // 光っていない
+        Proximity,  // 近づいた（接近）
+        Gaze        // 視線が合った（注視）
     }
-  }
 
-  public float OutlineWidth {
-    get { return outlineWidth; }
-    set {
-      outlineWidth = value;
-      needsUpdate = true;
+    [Header("Highlight Settings")]
+    public bool isHighlightable = true; 
+    
+    public bool isSuppressed = false; 
+
+    public Color proximityColor = new Color(1f, 1f, 1f, 0.5f); 
+    public Color gazeColor = Color.yellow; 
+
+    private HighlightState currentState = HighlightState.None;
+
+    public Mode OutlineMode {
+        get { return outlineMode; }
+        set {
+            outlineMode = value;
+            needsUpdate = true;
+        }
     }
-  }
 
-  [Serializable]
-  private class ListVector3 {
-    public List<Vector3> data;
-  }
-
-  [SerializeField]
-  private Mode outlineMode;
-
-  [SerializeField, HideInInspector]
-  private Color outlineColor = Color.white;
-
-  [SerializeField, Range(0f, 10f)]
-  private float outlineWidth = 2f;
-
-  [Header("Optional")]
-
-  [SerializeField, Tooltip("Precompute enabled: Per-vertex calculations are performed in the editor and serialized with the object. "
-  + "Precompute disabled: Per-vertex calculations are performed at runtime in Awake(). This may cause a pause for large meshes.")]
-  private bool precomputeOutline;
-
-  [SerializeField, HideInInspector]
-  private List<Mesh> bakeKeys = new List<Mesh>();
-
-  [SerializeField, HideInInspector]
-  private List<ListVector3> bakeValues = new List<ListVector3>();
-
-  private Renderer[] renderers;
-  private Material outlineMaskMaterial;
-  private Material outlineFillMaterial;
-
-  private bool needsUpdate;
-
-  void Awake() {
-    renderers = GetComponentsInChildren<Renderer>();
-
-    outlineMaskMaterial = Instantiate(Resources.Load<Material>(@"Materials/OutlineMask"));
-    outlineFillMaterial = Instantiate(Resources.Load<Material>(@"Materials/OutlineFill"));
-
-    outlineMaskMaterial.name = "OutlineMask (Instance)";
-    outlineFillMaterial.name = "OutlineFill (Instance)";
-
-    LoadSmoothNormals();
-    needsUpdate = true;
-  }
-
-  // ==========================================
-  // ゲーム開始時に自動でOFFにする
-  // ==========================================
-  void Start() {
-      this.enabled = false;
-  }
-
-  // ==========================================
-  // ★変更：PlayerInteract等から呼ばれる状態変更メソッド
-  // ==========================================
-  public void ChangeHighlightState(HighlightState newState) {
-      if (!isHighlightable) {
-          this.enabled = false;
-          currentState = HighlightState.None;
-          return;
-      }
-
-      // 状態が変わっていないなら何もしない（無駄な処理を省く）
-      if (currentState == newState) return;
-
-      currentState = newState;
-
-      switch (currentState) {
-          case HighlightState.None:
-              this.enabled = false; // コンポーネントをOFFにしてフチ取りを消す
-              break;
-          case HighlightState.Proximity:
-              OutlineColor = proximityColor; // 接近用の色に変更
-              this.enabled = true;           // コンポーネントをONにしてフチ取りを出す
-              break;
-          case HighlightState.Gaze:
-              OutlineColor = gazeColor;      // 視線用の色に変更
-              this.enabled = true;           // コンポーネントをONにしてフチ取りを出す
-              break;
-      }
-  }
-
-  void OnEnable() {
-    foreach (var renderer in renderers) {
-      var materials = renderer.sharedMaterials.ToList();
-      materials.Add(outlineMaskMaterial);
-      materials.Add(outlineFillMaterial);
-      renderer.sharedMaterials = materials.ToArray();
+    public Color OutlineColor {
+        get { return outlineColor; }
+        set {
+            outlineColor = value;
+            needsUpdate = true;
+        }
     }
-  }
 
-  void OnValidate() {
-    needsUpdate = true;
-    if (!precomputeOutline && bakeKeys.Count != 0 || bakeKeys.Count != bakeValues.Count) {
-      bakeKeys.Clear();
-      bakeValues.Clear();
+    public float OutlineWidth {
+        get { return outlineWidth; }
+        set {
+            outlineWidth = value;
+            needsUpdate = true;
+        }
     }
-    if (precomputeOutline && bakeKeys.Count == 0) {
-      Bake();
+
+    [Serializable]
+    private class ListVector3 {
+        public List<Vector3> data;
     }
-  }
 
-  void Update() {
-    if (needsUpdate) {
-      needsUpdate = false;
-      UpdateMaterialProperties();
+    [SerializeField]
+    private Mode outlineMode;
+
+    [SerializeField, HideInInspector]
+    private Color outlineColor = Color.white;
+
+    [SerializeField, Range(0f, 10f)]
+    private float outlineWidth = 2f;
+
+    [Header("Optional")]
+    [SerializeField]
+    private bool precomputeOutline;
+
+    [SerializeField, HideInInspector]
+    private List<Mesh> bakeKeys = new List<Mesh>();
+
+    [SerializeField, HideInInspector]
+    private List<ListVector3> bakeValues = new List<ListVector3>();
+
+    private Renderer[] renderers;
+    private Material outlineMaskMaterial;
+    private Material outlineFillMaterial;
+
+    private bool needsUpdate;
+
+    void Awake() {
+        int ignoreLayer = LayerMask.NameToLayer("Ignore Raycast");
+        renderers = GetComponentsInChildren<Renderer>()
+            .Where(r => r.gameObject.layer != ignoreLayer)
+            .ToArray();
+
+        outlineMaskMaterial = Instantiate(Resources.Load<Material>(@"Materials/OutlineMask"));
+        outlineFillMaterial = Instantiate(Resources.Load<Material>(@"Materials/OutlineFill"));
+
+        outlineMaskMaterial.name = "OutlineMask (Instance)";
+        outlineFillMaterial.name = "OutlineFill (Instance)";
+
+        LoadSmoothNormals();
+        needsUpdate = true;
     }
-  }
 
-  void OnDisable() {
-    foreach (var renderer in renderers) {
-      var materials = renderer.sharedMaterials.ToList();
-      materials.Remove(outlineMaskMaterial);
-      materials.Remove(outlineFillMaterial);
-      renderer.sharedMaterials = materials.ToArray();
+    void Start() {
+        this.enabled = false;
     }
-  }
 
-  void OnDestroy() {
-    Destroy(outlineMaskMaterial);
-    Destroy(outlineFillMaterial);
-  }
+    public void ChangeHighlightState(HighlightState newState) {
+        if (!isHighlightable || isSuppressed) {
+            if (this.enabled) this.enabled = false;
+            currentState = HighlightState.None;
+            return;
+        }
 
-  void Bake() {
-    var bakedMeshes = new HashSet<Mesh>();
-    foreach (var meshFilter in GetComponentsInChildren<MeshFilter>()) {
-      if (!bakedMeshes.Add(meshFilter.sharedMesh)) continue;
-      var smoothNormals = SmoothNormals(meshFilter.sharedMesh);
-      bakeKeys.Add(meshFilter.sharedMesh);
-      bakeValues.Add(new ListVector3() { data = smoothNormals });
+        if (currentState == newState) return;
+
+        currentState = newState;
+
+        switch (currentState) {
+            case HighlightState.None:
+                this.enabled = false; 
+                break;
+            case HighlightState.Proximity:
+                OutlineColor = proximityColor; 
+                this.enabled = true;           
+                break;
+            case HighlightState.Gaze:
+                OutlineColor = gazeColor;      
+                this.enabled = true;           
+                break;
+        }
     }
-  }
 
-  void LoadSmoothNormals() {
-    foreach (var meshFilter in GetComponentsInChildren<MeshFilter>()) {
-      if (!registeredMeshes.Add(meshFilter.sharedMesh)) continue;
-      var index = bakeKeys.IndexOf(meshFilter.sharedMesh);
-      var smoothNormals = (index >= 0) ? bakeValues[index].data : SmoothNormals(meshFilter.sharedMesh);
-      meshFilter.sharedMesh.SetUVs(3, smoothNormals);
-      var renderer = meshFilter.GetComponent<Renderer>();
-      if (renderer != null) CombineSubmeshes(meshFilter.sharedMesh, renderer.sharedMaterials);
+    void OnEnable() {
+        foreach (var renderer in renderers) {
+            var materials = renderer.sharedMaterials.ToList();
+            materials.Add(outlineMaskMaterial);
+            materials.Add(outlineFillMaterial);
+            renderer.sharedMaterials = materials.ToArray();
+        }
     }
-    foreach (var skinnedMeshRenderer in GetComponentsInChildren<SkinnedMeshRenderer>()) {
-      if (!registeredMeshes.Add(skinnedMeshRenderer.sharedMesh)) continue;
-      skinnedMeshRenderer.sharedMesh.uv4 = new Vector2[skinnedMeshRenderer.sharedMesh.vertexCount];
-      CombineSubmeshes(skinnedMeshRenderer.sharedMesh, skinnedMeshRenderer.sharedMaterials);
+
+    void OnValidate() {
+        needsUpdate = true;
+        if (!precomputeOutline && bakeKeys.Count != 0 || bakeKeys.Count != bakeValues.Count) {
+            bakeKeys.Clear();
+            bakeValues.Clear();
+        }
+        if (precomputeOutline && bakeKeys.Count == 0) {
+            Bake();
+        }
     }
-  }
 
-  List<Vector3> SmoothNormals(Mesh mesh) {
-    var groups = mesh.vertices.Select((vertex, index) => new KeyValuePair<Vector3, int>(vertex, index)).GroupBy(pair => pair.Key);
-    var smoothNormals = new List<Vector3>(mesh.normals);
-    foreach (var group in groups) {
-      if (group.Count() == 1) continue;
-      var smoothNormal = Vector3.zero;
-      foreach (var pair in group) smoothNormal += smoothNormals[pair.Value];
-      smoothNormal.Normalize();
-      foreach (var pair in group) smoothNormals[pair.Value] = smoothNormal;
+    void Update() {
+        if (needsUpdate) {
+            needsUpdate = false;
+            UpdateMaterialProperties();
+        }
     }
-    return smoothNormals;
-  }
 
-  void CombineSubmeshes(Mesh mesh, Material[] materials) {
-    if (mesh.subMeshCount == 1) return;
-    if (mesh.subMeshCount > materials.Length) return;
-    mesh.subMeshCount++;
-    mesh.SetTriangles(mesh.triangles, mesh.subMeshCount - 1);
-  }
-
-  void UpdateMaterialProperties() {
-    outlineFillMaterial.SetColor("_OutlineColor", outlineColor);
-    switch (outlineMode) {
-      case Mode.OutlineAll:
-        outlineMaskMaterial.SetFloat("_ZTest", (float)UnityEngine.Rendering.CompareFunction.Always);
-        outlineFillMaterial.SetFloat("_ZTest", (float)UnityEngine.Rendering.CompareFunction.Always);
-        outlineFillMaterial.SetFloat("_OutlineWidth", outlineWidth);
-        break;
-      case Mode.OutlineVisible:
-        outlineMaskMaterial.SetFloat("_ZTest", (float)UnityEngine.Rendering.CompareFunction.Always);
-        outlineFillMaterial.SetFloat("_ZTest", (float)UnityEngine.Rendering.CompareFunction.LessEqual);
-        outlineFillMaterial.SetFloat("_OutlineWidth", outlineWidth);
-        break;
-      case Mode.OutlineHidden:
-        outlineMaskMaterial.SetFloat("_ZTest", (float)UnityEngine.Rendering.CompareFunction.Always);
-        outlineFillMaterial.SetFloat("_ZTest", (float)UnityEngine.Rendering.CompareFunction.Greater);
-        outlineFillMaterial.SetFloat("_OutlineWidth", outlineWidth);
-        break;
-      case Mode.OutlineAndSilhouette:
-        outlineMaskMaterial.SetFloat("_ZTest", (float)UnityEngine.Rendering.CompareFunction.LessEqual);
-        outlineFillMaterial.SetFloat("_ZTest", (float)UnityEngine.Rendering.CompareFunction.Always);
-        outlineFillMaterial.SetFloat("_OutlineWidth", outlineWidth);
-        break;
-      case Mode.SilhouetteOnly:
-        outlineMaskMaterial.SetFloat("_ZTest", (float)UnityEngine.Rendering.CompareFunction.LessEqual);
-        outlineFillMaterial.SetFloat("_ZTest", (float)UnityEngine.Rendering.CompareFunction.Greater);
-        outlineFillMaterial.SetFloat("_OutlineWidth", 0f);
-        break;
+    void OnDisable() {
+        foreach (var renderer in renderers) {
+            var materials = renderer.sharedMaterials.ToList();
+            materials.Remove(outlineMaskMaterial);
+            materials.Remove(outlineFillMaterial);
+            renderer.sharedMaterials = materials.ToArray();
+        }
     }
-  }
 
-  // ==========================================
-  // ★追加：状態を管理するフラグ
-  // ==========================================
-  private bool isGazed = false;
-  private bool isProximate = false;
+    void OnDestroy() {
+        Destroy(outlineMaskMaterial);
+        Destroy(outlineFillMaterial);
+    }
 
-  // PlayerInteractから呼ばれる（視線のON/OFF）
-  public void SetGaze(bool isLooking) {
-      isGazed = isLooking;
-      EvaluateHighlight();
-  }
+    void Bake() {
+        var bakedMeshes = new HashSet<Mesh>();
+        int ignoreLayer = LayerMask.NameToLayer("Ignore Raycast");
 
-  // プレイヤーが近づいた時（接近のON）
-  private void OnTriggerEnter(Collider other) {
-      // プレイヤーが近づいたかタグで判定（Player側のタグを"Player"に設定しておくこと）
-      if (other.CompareTag("Player")) {
-          isProximate = true;
-          EvaluateHighlight();
-      }
-  }
+        foreach (var meshFilter in GetComponentsInChildren<MeshFilter>()) {
+            if (meshFilter.gameObject.layer == ignoreLayer) continue; // 💡ここも液体を除外
+            if (!bakedMeshes.Add(meshFilter.sharedMesh)) continue;
+            var smoothNormals = SmoothNormals(meshFilter.sharedMesh);
+            bakeKeys.Add(meshFilter.sharedMesh);
+            bakeValues.Add(new ListVector3() { data = smoothNormals });
+        }
+    }
 
-  // プレイヤーが離れた時（接近のOFF）
-  private void OnTriggerExit(Collider other) {
-      if (other.CompareTag("Player")) {
-          isProximate = false;
-          EvaluateHighlight();
-      }
-  }
+    void LoadSmoothNormals() {
+        int ignoreLayer = LayerMask.NameToLayer("Ignore Raycast");
 
-  // フラグの優先順位を計算して色を決定する
-  private void EvaluateHighlight() {
-      if (!isHighlightable) {
-          ChangeHighlightState(HighlightState.None);
-          return;
-      }
+        foreach (var meshFilter in GetComponentsInChildren<MeshFilter>()) {
+            if (meshFilter.gameObject.layer == ignoreLayer) continue; // 💡ここも液体を除外
+            if (!registeredMeshes.Add(meshFilter.sharedMesh)) continue;
+            var index = bakeKeys.IndexOf(meshFilter.sharedMesh);
+            var smoothNormals = (index >= 0) ? bakeValues[index].data : SmoothNormals(meshFilter.sharedMesh);
+            meshFilter.sharedMesh.SetUVs(3, smoothNormals);
+            var renderer = meshFilter.GetComponent<Renderer>();
+            if (renderer != null) CombineSubmeshes(meshFilter.sharedMesh, renderer.sharedMaterials);
+        }
+        foreach (var skinnedMeshRenderer in GetComponentsInChildren<SkinnedMeshRenderer>()) {
+            if (skinnedMeshRenderer.gameObject.layer == ignoreLayer) continue; // 💡ここも液体を除外
+            if (!registeredMeshes.Add(skinnedMeshRenderer.sharedMesh)) continue;
+            skinnedMeshRenderer.sharedMesh.uv4 = new Vector2[skinnedMeshRenderer.sharedMesh.vertexCount];
+            CombineSubmeshes(skinnedMeshRenderer.sharedMesh, skinnedMeshRenderer.sharedMaterials);
+        }
+    }
 
+    List<Vector3> SmoothNormals(Mesh mesh) {
+        var groups = mesh.vertices.Select((vertex, index) => new KeyValuePair<Vector3, int>(vertex, index)).GroupBy(pair => pair.Key);
+        var smoothNormals = new List<Vector3>(mesh.normals);
+        foreach (var group in groups) {
+            if (group.Count() == 1) continue;
+            var smoothNormal = Vector3.zero;
+            foreach (var pair in group) smoothNormal += smoothNormals[pair.Value];
+            smoothNormal.Normalize();
+            foreach (var pair in group) smoothNormals[pair.Value] = smoothNormal;
+        }
+        return smoothNormals;
+    }
 
-      if (DialogueManager.Instance != null && DialogueManager.Instance.isTalking) {
-          ChangeHighlightState(HighlightState.None);
-          return;
-      }
+    void CombineSubmeshes(Mesh mesh, Material[] materials) {
+        if (mesh.subMeshCount == 1) return;
+        if (mesh.subMeshCount > materials.Length) return;
+        mesh.subMeshCount++;
+        mesh.SetTriangles(mesh.triangles, mesh.subMeshCount - 1);
+    }
 
-      // 優先順位: 視線(Gaze) > 接近(Proximity) > 何もなし(None)
-      if (isGazed) {
-          ChangeHighlightState(HighlightState.Gaze);
-      } else if (isProximate) {
-          ChangeHighlightState(HighlightState.Proximity);
-      } else {
-          ChangeHighlightState(HighlightState.None);
-      }
-  }
+    void UpdateMaterialProperties() {
+        outlineFillMaterial.SetColor("_OutlineColor", outlineColor);
+        switch (outlineMode) {
+            case Mode.OutlineAll:
+                outlineMaskMaterial.SetFloat("_ZTest", (float)UnityEngine.Rendering.CompareFunction.Always);
+                outlineFillMaterial.SetFloat("_ZTest", (float)UnityEngine.Rendering.CompareFunction.Always);
+                outlineFillMaterial.SetFloat("_OutlineWidth", outlineWidth);
+                break;
+            case Mode.OutlineVisible:
+                outlineMaskMaterial.SetFloat("_ZTest", (float)UnityEngine.Rendering.CompareFunction.Always);
+                outlineFillMaterial.SetFloat("_ZTest", (float)UnityEngine.Rendering.CompareFunction.LessEqual);
+                outlineFillMaterial.SetFloat("_OutlineWidth", outlineWidth);
+                break;
+            case Mode.OutlineHidden:
+                outlineMaskMaterial.SetFloat("_ZTest", (float)UnityEngine.Rendering.CompareFunction.Always);
+                outlineFillMaterial.SetFloat("_ZTest", (float)UnityEngine.Rendering.CompareFunction.Greater);
+                outlineFillMaterial.SetFloat("_OutlineWidth", outlineWidth);
+                break;
+            case Mode.OutlineAndSilhouette:
+                outlineMaskMaterial.SetFloat("_ZTest", (float)UnityEngine.Rendering.CompareFunction.LessEqual);
+                outlineFillMaterial.SetFloat("_ZTest", (float)UnityEngine.Rendering.CompareFunction.Always);
+                outlineFillMaterial.SetFloat("_OutlineWidth", outlineWidth);
+                break;
+            case Mode.SilhouetteOnly:
+                outlineMaskMaterial.SetFloat("_ZTest", (float)UnityEngine.Rendering.CompareFunction.LessEqual);
+                outlineFillMaterial.SetFloat("_ZTest", (float)UnityEngine.Rendering.CompareFunction.Greater);
+                outlineFillMaterial.SetFloat("_OutlineWidth", 0f);
+                break;
+        }
+    }
 
-private void OnMouseEnter() {
-      // カーソルが表示されている時だけ、視線(Gaze)として扱う
-      //if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) {
-      //    return; 
-      //}
-      if (Cursor.visible) {
-          SetGaze(true);
-      }
-  }
+    private bool isGazed = false;
+    private bool isProximate = false;
 
-  private void OnMouseExit() {
-      // カーソルが出ているかどうかにかかわらず、マウスが外れたら確実に消す
-      SetGaze(false);
-  }
+    public void SetGaze(bool isLooking) {
+        isGazed = isLooking;
+        EvaluateHighlight();
+    }
 
+    private void OnTriggerEnter(Collider other) {
+        if (other.CompareTag("Player")) {
+            isProximate = true;
+            EvaluateHighlight();
+        }
+    }
+
+    private void OnTriggerExit(Collider other) {
+        if (other.CompareTag("Player")) {
+            isProximate = false;
+            EvaluateHighlight();
+        }
+    }
+
+    private void EvaluateHighlight() {
+        if (!isHighlightable || isSuppressed) {
+            ChangeHighlightState(HighlightState.None);
+            return;
+        }
+
+        if (DialogueManager.Instance != null && DialogueManager.Instance.isTalking) {
+            ChangeHighlightState(HighlightState.None);
+            return;
+        }
+
+        if (isGazed) {
+            ChangeHighlightState(HighlightState.Gaze);
+        } else if (isProximate) {
+            ChangeHighlightState(HighlightState.Proximity);
+        } else {
+            ChangeHighlightState(HighlightState.None);
+        }
+    }
+
+    private void OnMouseEnter() {
+
+      // if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) {
+      //     return; 
+      // }
+        if (Cursor.visible) {
+            SetGaze(true);
+        }
+    }
+
+    private void OnMouseExit() {
+        SetGaze(false);
+    }
 }
