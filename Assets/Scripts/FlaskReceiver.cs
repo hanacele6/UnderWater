@@ -14,8 +14,9 @@ public class FlaskReceiver : MonoBehaviour
     public Transform bottomPoint;    
     public float currentLiquidAmount = 0f;
     public float maxLiquidAmount = 100f;
-    // 0.1fの誤差を許容して満タン判定をゆるくしました
-    public bool IsFull => currentLiquidAmount >= (maxLiquidAmount - 0.1f);
+
+    public bool isMixingComplete = false;
+    public bool IsFull => currentLiquidAmount >= (maxLiquidAmount - 0.3f);
 
     [Header("フラスコの内容物（固体・成分）")]
     public List<ItemData> addedItems = new List<ItemData>();
@@ -24,12 +25,14 @@ public class FlaskReceiver : MonoBehaviour
     [Header("遠心分離・かき混ぜ設定")]
     [Range(0, 100)]
     public float mixProgress = 0f;
-    public GameObject progressBarRoot; // 親（背景）のアタッチ用
-    public Image progressFillImage;    // 子（ゲージ中身）のアタッチ用
+    public GameObject progressBarRoot; 
+    public Image progressFillImage;    
 
     [Header("完成品データベース")]
     public List<GrownSampleData> allRecipes = new List<GrownSampleData>();
     public GrownSampleData defaultSludge; 
+    
+    public GrownSampleData completedResult = null;
 
     private const string FillLevelProp = "_FillLevel";
     private Material liquidMat;
@@ -45,6 +48,8 @@ public class FlaskReceiver : MonoBehaviour
 
     private Coroutine mixColorCoroutine;
 
+    public float pourRatePerSecond = 20f;
+
     private void Awake()
     {
         Instance = this; 
@@ -53,6 +58,9 @@ public class FlaskReceiver : MonoBehaviour
     private void Start()
     {
         if (progressBarRoot != null) progressBarRoot.gameObject.SetActive(false);
+
+        isMixingComplete = false; 
+        mixProgress = 0f;
 
         if (liquidRenderer != null)
         {
@@ -78,7 +86,7 @@ public class FlaskReceiver : MonoBehaviour
 
     public void ReceiveLiquid(float amount)
     {
-        if (IsFull) return;
+        if (IsFull || isMixingComplete) return;
         currentLiquidAmount += amount;
         currentLiquidAmount = Mathf.Clamp(currentLiquidAmount, 0, maxLiquidAmount);
     }
@@ -101,6 +109,8 @@ public class FlaskReceiver : MonoBehaviour
 
     public void AddIngredient(ItemData item)
     {
+        if (isMixingComplete) return;
+
         addedItems.Add(item);
 
         if (bubbleParticles != null) bubbleParticles.Play();
@@ -148,16 +158,17 @@ public class FlaskReceiver : MonoBehaviour
         if (liquidMat != null) liquidMat.SetFloat(MarbleProgressProp, 1f); 
     }
 
-    // Shakerからゲージの表示・非表示を操作できるようにする
     public void SetProgressBarVisible(bool isVisible)
     {
+        if (isMixingComplete && isVisible) return;
+
         if (progressBarRoot != null) progressBarRoot.SetActive(isVisible);
     }
-
     private bool isProcessingSynthesis = false;
+    
     public void AddMixProgress(float amount)
     {
-        if (!IsFull || addedItems.Count == 0 || isProcessingSynthesis) return;
+        if (!IsFull || addedItems.Count == 0 || isProcessingSynthesis || isMixingComplete) return;
 
         mixProgress += amount;
         mixProgress = Mathf.Clamp(mixProgress, 0, 100f);
@@ -165,20 +176,16 @@ public class FlaskReceiver : MonoBehaviour
         if (progressFillImage != null) progressFillImage.fillAmount = mixProgress / 100f;
 
         if (mixProgress >= 100f) 
-    {
-        isProcessingSynthesis = true; // ロック
-        CompleteSynthesis();
-    }
+        {
+            isProcessingSynthesis = true; 
+            CompleteSynthesis();
+        }
     }
 
     private void CompleteSynthesis()
     {
-        // ① 絶対に一番最初にUIと進行度をゼロに戻して隠す
-        mixProgress = 0f; 
-        if (progressFillImage != null) progressFillImage.fillAmount = 0f;
-        if (progressBarRoot != null) progressBarRoot.SetActive(false);
+        SetProgressBarVisible(false);
 
-        // ② try〜finallyブロックで、エラーが起きても「必ず最後は空っぽにする」ことを保証する
         try
         {
             GrownSampleData result = null;
@@ -201,32 +208,61 @@ public class FlaskReceiver : MonoBehaviour
 
             if (result == null) result = defaultSludge;
 
+            completedResult = result;
+
             if (result != null)
-                Debug.Log($"完成したタネ：【{result.sampleName}】");
+            {
+                Debug.Log($"✨ 完成したタネ：【{result.sampleName}】 ✨");
+                
+                Color resultColor = result.potionColor;
+                
+                if (mixColorCoroutine != null) StopCoroutine(mixColorCoroutine);
+                mixColorCoroutine = StartCoroutine(SmoothColorMix(resultColor));
+                
+                if (bubbleParticles != null) bubbleParticles.Play(); 
+            }
             else
+            {
                 Debug.LogWarning("注意：インスペクターの Default Sludge が設定されていません！");
+            }
+            
+            // 💡 状態を「完了」にロックする
+            isMixingComplete = true;
         }
         catch (Exception e)
         {
-            // レシピ判定でエラーが起きても、ここでエラーログだけ出してゲームを止めない
             Debug.LogError($"調合の判定中にエラーが発生しましたが、処理を続行します: {e.Message}");
         }
         finally
         {
-            // ③ 【超重要】上の処理で何が起きようと、必ずここが実行されてフラスコが空になる！
-            addedItems.Clear();
-            currentTags.Clear();
-            currentLiquidAmount = 0f;
-            UpdateShaderFillLevel();
+            mixProgress = 0f;
+            if (progressFillImage != null) progressFillImage.fillAmount = 0f;
             isProcessingSynthesis = false;
         }
+    }
+
+    public void EmptyFlask()
+    {
+        addedItems.Clear();
+        currentTags.Clear();
+        currentLiquidAmount = 0f;
+        completedResult = null;
+        isMixingComplete = false;
+        mixProgress = 0f;
+
+        UpdateShaderFillLevel();
+
+        // 液体の色をデフォルトの透明な水色に戻す
+        if (mixColorCoroutine != null) StopCoroutine(mixColorCoroutine);
+        mixColorCoroutine = StartCoroutine(SmoothColorMix(defaultColor));
+
+        Debug.Log("フラスコが空になりました！次の調合が可能です。");
     }
 
     private bool CheckRecipeCondition(GrownSampleData recipe)
     {
         if (recipe == null) return false;
 
-        // タグが空っぽ（Null）でもエラーにならないようにする安全装置
         if (recipe.forbiddenTags != null)
         {
             foreach (var badTag in recipe.forbiddenTags)

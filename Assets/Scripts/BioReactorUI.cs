@@ -54,13 +54,27 @@ public class BioReactorUI : MonoBehaviour
     // 持っている「素材」だけをリストアップする
     public void RefreshIngredientList()
     {
+        // リストを一度クリア
         foreach (Transform child in ingredientListParent)
         {
             Destroy(child.gameObject);
         }
 
-        if (InventoryManager.Instance == null) return;
+        // 💡 液体が入っていない場合は、ボタンを作らずにメッセージを表示して終了
+        if (FlaskReceiver.Instance.currentLiquidAmount <= 0f)
+        {
+            GameObject msgObj = Instantiate(ingredientButtonPrefab, ingredientListParent);
+            TextMeshProUGUI textUI = msgObj.GetComponentInChildren<TextMeshProUGUI>();
+            if (textUI != null) textUI.text = "<color=#FF6666>液体を先に注いでください</color>";
+            
+            // ボタンとしての機能を無効化
+            Button btn = msgObj.GetComponent<Button>();
+            if (btn != null) btn.interactable = false;
+            return;
+        }
 
+        if (InventoryManager.Instance == null) return;
+        
         var materials = InventoryManager.Instance.inventoryList
             .Where(item => item.category == ItemCategory.Material)
             .GroupBy(item => item)

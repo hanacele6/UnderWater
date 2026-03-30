@@ -3,28 +3,24 @@ using UnityEngine;
 public class TestTube3D : MonoBehaviour
 {
     [Header("連携設定")]
-    [Tooltip("実験机を映している専用カメラ（DeskCamera）")]
     public Camera deskCamera;
-    [Tooltip("フラスコの受け口（FlaskReceiver）")]
     public FlaskReceiver flaskReceiver;
 
     [Header("試験管の設定")]
     public float maxLiquid = 100f;
     public float currentLiquid;
-    [Tooltip("1秒間に注ぐ量")]
     public float pourRatePerSecond = 30f;
-    [Tooltip("フラスコの口にどれくらい近づけたら注ぐか")]
     public float pourDistance = 0.5f; 
     
-    [Tooltip("注ぐ時の「最大」傾き（X, Y, Z）")]
-    public Vector3 maxTiltRotation = new Vector3(0, 0, 75f); // 少し深めに設定
-    [Tooltip("傾くスピード")]
+    [Header("注ぎ口の設定")]
+    public Transform spoutPoint;
+    public Vector3 pourOffset = new Vector3(0, 0.5f, 0);
+
+    public Vector3 maxTiltRotation = new Vector3(0, 0, 75f);
     public float tiltSpeed = 5f;
 
     [Header("3Dシェーダー・演出設定")]
-    [Tooltip("試験管の中の液体メッシュ（Renderer）をアサイン")]
     public Renderer liquidRenderer;
-    [Tooltip("口に付けた注ぐ水流（Particle System）をアサイン")]
     public ParticleSystem pourParticles;
 
     // ドラッグ用変数
@@ -33,23 +29,27 @@ public class TestTube3D : MonoBehaviour
     private Vector3 startPosition;
     private Quaternion startRotation;
     private bool isDragging = false;
+    
+    // 💡追加：吸い付き状態を管理するフラグ
+    private bool isSnapped = false;
 
     // シェーダー制御用変数
     private const string FillLevelProp = "_FillLevel";
     private Material liquidMat;
-    private float initialMeshHeight;
 
-    private float localBottomY;
-    private float localTopY;
+    // 💡追加：ハイライト制御用
+    private InteractableHighlight highlight;
 
     void Start()
     {
-        //currentLiquid = maxLiquid;
         startPosition = transform.position;
         startRotation = transform.rotation;
         
         if (deskCamera == null) deskCamera = GameObject.Find("DeskCamera").GetComponent<Camera>();
         if (liquidRenderer != null) liquidMat = liquidRenderer.material;
+        
+        // 💡 ハイライトスクリプトを取得
+        highlight = GetComponentInChildren<InteractableHighlight>();
     }
 
     void Update()
@@ -57,18 +57,11 @@ public class TestTube3D : MonoBehaviour
         if (liquidMat != null && liquidRenderer != null)
         {
             float ratio = currentLiquid / maxLiquid;
-            
-            // 試験管が傾いて bounds（枠）が縮んでも、常にその時の下と上を使ってLerpする！
             float currentWorldY = Mathf.Lerp(liquidRenderer.bounds.min.y, liquidRenderer.bounds.max.y, ratio);
-            
             liquidMat.SetFloat(FillLevelProp, currentWorldY);
         }
     }
 
-
-    // ==========================================
-    // 1. マウスで掴んだ瞬間
-    // ==========================================
     void OnMouseDown()
     {
         if (currentLiquid <= 0f) return;
@@ -76,35 +69,58 @@ public class TestTube3D : MonoBehaviour
             UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()) return;
 
         isDragging = true;
+        isSnapped = false; // 掴んだ時はリセット
         
         screenPoint = deskCamera.WorldToScreenPoint(gameObject.transform.position);
         offset = gameObject.transform.position - deskCamera.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, screenPoint.z));
+
+        // 💡 ハイライトを強制オフ（抑制）
+        if (highlight != null) 
+        {
+            highlight.isSuppressed = true;
+            highlight.ChangeHighlightState(InteractableHighlight.HighlightState.None);
+        }
     }
 
-    // ==========================================
-    // 2. マウスでドラッグしている間（毎フレーム）
-    // ==========================================
     void OnMouseDrag()
     {
         if (!isDragging) return;
 
         Vector3 cursorPoint = new Vector3(Input.mousePosition.x, Input.mousePosition.y, screenPoint.z);
         Vector3 cursorPosition = deskCamera.ScreenToWorldPoint(cursorPoint) + offset;
-        transform.position = cursorPosition;
 
-        // ---------- フラスコに注ぐ判定 ----------
         if (flaskReceiver != null)
         {
-            float distance = Vector3.Distance(transform.position, flaskReceiver.openingPoint.position);
+            Transform referencePoint = spoutPoint != null ? spoutPoint : transform;
+            Vector3 spoutLocalOffset = referencePoint.position - transform.position;
+            
+            // 仮想の注ぎ口の位置
+            Vector3 virtualSpoutPos = cursorPosition + spoutLocalOffset;
+            float distance = Vector3.Distance(virtualSpoutPos, flaskReceiver.openingPoint.position);
 
-            if (distance <= pourDistance)
+            // 💡 修正のコア：「遊び」を持たせたスナップ判定（速度チェックは削除！）
+            if (isSnapped)
             {
-                float tiltRatio = 1.0f - (distance / pourDistance); 
+                // 既に吸い付いている場合は、設定距離の「1.5倍」離さないと引き剥がせない（これが磁石感を生む）
+                if (distance > pourDistance * 1.5f) isSnapped = false;
+            }
+            else
+            {
+                // まだ吸い付いていない場合は、設定距離に入ったら吸い付く
+                if (distance <= pourDistance) isSnapped = true;
+            }
+
+            // --- 判定結果に基づく処理 ---
+            if (isSnapped)
+            {
+                // 吸い付き＆注ぐ処理
+                Vector3 targetPos = flaskReceiver.openingPoint.position + pourOffset - spoutLocalOffset;
+                transform.position = Vector3.Lerp(transform.position, targetPos, Time.deltaTime * 10f);
+
                 Quaternion targetRot = Quaternion.Euler(maxTiltRotation);
                 transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, Time.deltaTime * tiltSpeed);
 
-
-                if (currentLiquid > 0f && !flaskReceiver.IsFull)
+                if (currentLiquid > 0f && !flaskReceiver.IsFull && !flaskReceiver.isMixingComplete)
                 {
                     if (pourParticles != null && !pourParticles.isPlaying) pourParticles.Play();
 
@@ -113,55 +129,44 @@ public class TestTube3D : MonoBehaviour
                     
                     currentLiquid -= amountToPour;
                     flaskReceiver.ReceiveLiquid(amountToPour);
-                    UpdateShaderFillLevel();
-
+                    
                     if (currentLiquid <= 0f)
                     {
-                        currentLiquid = 0f; // 絶対にマイナスにさせない
+                        currentLiquid = 0f;
                         if (pourParticles != null) pourParticles.Stop();
-                        Debug.Log("試験管が完全に空になりました！");
                     }
                 }
                 else
                 {
-                    // 空っぽ、またはフラスコが満タンの場合は絶対にパーティクルを出さない
                     if (pourParticles != null && pourParticles.isPlaying) pourParticles.Stop();
                 }
             }
             else
             {
+                // 追従処理（スナップ解除時）
+                transform.position = Vector3.Lerp(transform.position, cursorPosition, Time.deltaTime * 15f);
                 transform.rotation = Quaternion.Slerp(transform.rotation, startRotation, Time.deltaTime * tiltSpeed);
                 if (pourParticles != null && pourParticles.isPlaying) pourParticles.Stop();
             }
         }
+        else
+        {
+            transform.position = Vector3.Lerp(transform.position, cursorPosition, Time.deltaTime * 15f);
+        }
     }
 
-    // ==========================================
-    // 3. マウスを離した瞬間
-    // ==========================================
     void OnMouseUp()
     {
         if (!isDragging) return;
         isDragging = false;
+        isSnapped = false; // 離した時もリセット
 
-        // 手を離したら瞬時にカチャッと元の位置・角度に戻る
         transform.position = startPosition;
         transform.rotation = startRotation;
 
-        // パーティクルを確実に止める
         if (pourParticles != null && pourParticles.isPlaying) pourParticles.Stop();
-    }
 
-
-    private void UpdateShaderFillLevel()
-    {
-        if (liquidMat != null)
-        {
-            float ratio = currentLiquid / maxLiquid;
-            
-            float localFillY = Mathf.Lerp(localBottomY, localTopY, ratio);
-            
-            liquidMat.SetFloat(FillLevelProp, localFillY);
-        }
+        // 💡 ハイライトの抑制を解除
+        if (highlight != null) highlight.isSuppressed = false;
     }
 }

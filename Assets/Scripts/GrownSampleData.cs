@@ -24,6 +24,9 @@ public class GrownSampleData : ScriptableObject
     [Tooltip("完成までに必要な日数")]
     public int daysToGrow = 3;
 
+    [Header("完成時の見た目")]
+    public Color potionColor = new Color(1f, 1f, 1f, 1f);
+
 
     [Header("レシピ条件")]
     [Tooltip("例：Toxicが2以上、Meatが1以上 など")]
