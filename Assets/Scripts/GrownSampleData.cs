@@ -15,14 +15,18 @@ public class GrownSampleData : ScriptableObject
 {
     [Header("完成品データ")]
     public string sampleName;
+
+    [Header("完成時に手に入るアイテム")]
+    public SampleItemData finalSample;
+    
     [TextArea(3, 5)]
     public string description;
     public Sprite completedIcon;
     public GameObject samplePrefab; // 水槽の中で育っていく様子や完成品の3Dモデル
 
-    [Header("培養設定")]
-    [Tooltip("完成までに必要な日数")]
-    public int daysToGrow = 3;
+    //[Header("培養設定")]
+    //[Tooltip("完成までに必要な日数")]
+    //public int daysToGrow = 3;
 
     [Header("完成時の見た目")]
     public Color potionColor = new Color(1f, 1f, 1f, 1f);

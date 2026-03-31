@@ -11,7 +11,7 @@ public class PipetteReceiver : MonoBehaviour
     public Transform bottomPoint;  // 底（液面の計算用）
     public Renderer liquidRenderer;
 
-    public bool IsFull => currentLiquid >= maxLiquid;
+    public bool IsFull => currentLiquid >= (maxLiquid - 0.5f);
     public GrownSampleData receivedPotion { get; private set; }
 
     private Material liquidMat;
@@ -60,6 +60,18 @@ public class PipetteReceiver : MonoBehaviour
         {
             currentLiquid = maxLiquid;
             Debug.Log($"🧬 ピペットが【{receivedPotion.sampleName}】で満タンになりました！次のピペットへ！");
+        }
+    }
+
+    public void EmptyPipette()
+    {
+        currentLiquid = 0f;
+        receivedPotion = null;
+
+        // シェーダーの液面を一番下（見えない位置）に下げる
+        if (liquidMat != null && bottomPoint != null)
+        {
+            liquidMat.SetFloat(FillLevelProp, bottomPoint.position.y - 1.0f);
         }
     }
 }

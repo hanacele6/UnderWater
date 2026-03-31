@@ -55,6 +55,9 @@ public class GameManager : MonoBehaviour
     [Header("カーソル制御")]
     public bool forceShowCursor = false;
 
+    [Header("UI状態")]
+    public bool isUIOpen = false;
+
     void Awake()
     {
         if (Instance == null) Instance = this;
@@ -229,7 +232,7 @@ public class GameManager : MonoBehaviour
         
 
         // 1. まず画面を暗転させる
-        if (!isRadio)
+        if (!isRadio && eventData.useScreenFade)
         {
             if (UIManager.Instance != null && UIManager.Instance.fadeCanvasGroup != null) 
             {
@@ -266,7 +269,7 @@ public class GameManager : MonoBehaviour
         }
 
         // 4. 画面を明るくする
-        if (!isRadio)
+        if (!isRadio && eventData.useScreenFade)
         {
             if (UIManager.Instance != null && UIManager.Instance.fadeCanvasGroup != null) 
             {
@@ -364,6 +367,7 @@ public class GameManager : MonoBehaviour
     public void UnlockPlayer()
     {
         if (DialogueManager.Instance != null && DialogueManager.Instance.isRadioMode) return;
+        if (isUIOpen) return;
         GameObject player = GameObject.FindWithTag("Player");
         if (player != null)
         {

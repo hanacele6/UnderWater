@@ -8,66 +8,79 @@ using System;
 public class BioReactorUI : MonoBehaviour
 {
     [Header("UIのON/OFF制御")]
-    [Tooltip("実験机の背景パネル本体（Canvasの直下にあるPanel）")]
     public GameObject mainWindow; 
-    [Tooltip("素材リストのScroll View本体（ボタンを押すまで隠しておく）")]
     public GameObject ingredientScrollView; 
 
     [Header("UI参照")]
     public Transform ingredientListParent; 
     public GameObject ingredientButtonPrefab; 
 
-    [Header("3D落下ギミック")]
-    [Tooltip("フラスコ上空の落下地点（空オブジェクトをアサイン）")]
-    public Transform dropPoint; 
-    [Tooltip("アイテム専用モデルがない時に落とす汎用プレハブ")]
-    public GameObject defaultDropPrefab;
+    [Tooltip("素材リストを開くためのボタン")]
+    public GameObject ingredientToggleButton;
 
+    [Header("工程ボタン")]
+    public GameObject extractionButton;
+    public GameObject startSpinButton;
+
+    [Header("3D落下ギミック")]
+    public Transform dropPoint; 
+    public GameObject defaultDropPrefab;
 
     private Action onCloseCallback;
 
-    public void OpenReactorUI(Action onClose = null)
+   public void OpenReactorUI(Action onClose = null)
     {
         onCloseCallback = onClose;
 
         if (mainWindow != null) mainWindow.SetActive(true);
+        
         if (ingredientScrollView != null) ingredientScrollView.SetActive(false); 
+        SetExtractionButtonVisible(false);
+        SetStartSpinButtonVisible(false);
     }
 
+    public void UpdateUIState(float liquidAmount, bool isAllPipettesFull, bool isCentrifuging)
+    {
+        // 💡 液体が少しでも（0.1f以上）入っていれば、素材投入ボタンを表示する
+        if (ingredientToggleButton != null)
+        {
+            ingredientToggleButton.SetActive(liquidAmount > 0.1f && !isCentrifuging);
+        }
+        
+        // 抽出ボタンの表示条件（ピペット満タン ＆ まだ移動前）
+        SetExtractionButtonVisible(isAllPipettesFull && !isCentrifuging);
+    }
+    public void SetExtractionButtonVisible(bool isVisible)
+    {
+        if (extractionButton != null) extractionButton.SetActive(isVisible);
+    }
+
+    public void SetStartSpinButtonVisible(bool isVisible)
+    {
+        if (startSpinButton != null) startSpinButton.SetActive(isVisible);
+    }
 
     public void ToggleIngredientList()
     {
         if (ingredientScrollView != null)
         {
-            // 今の状態の「逆」にする（開いていたら閉じ、閉じていたら開く）
             bool isActive = ingredientScrollView.activeSelf;
             ingredientScrollView.SetActive(!isActive);
 
-            // 開いた時だけ中身を最新にする
-            if (!isActive)
-            {
-                RefreshIngredientList();
-            }
+            if (!isActive) RefreshIngredientList();
         }
     }
 
-    // 持っている「素材」だけをリストアップする
     public void RefreshIngredientList()
     {
-        // リストを一度クリア
-        foreach (Transform child in ingredientListParent)
-        {
-            Destroy(child.gameObject);
-        }
+        foreach (Transform child in ingredientListParent) Destroy(child.gameObject);
 
-        // 💡 液体が入っていない場合は、ボタンを作らずにメッセージを表示して終了
         if (FlaskReceiver.Instance.currentLiquidAmount <= 0f)
         {
             GameObject msgObj = Instantiate(ingredientButtonPrefab, ingredientListParent);
             TextMeshProUGUI textUI = msgObj.GetComponentInChildren<TextMeshProUGUI>();
             if (textUI != null) textUI.text = "<color=#FF6666>液体を先に注いでください</color>";
             
-            // ボタンとしての機能を無効化
             Button btn = msgObj.GetComponent<Button>();
             if (btn != null) btn.interactable = false;
             return;
@@ -91,10 +104,7 @@ public class BioReactorUI : MonoBehaviour
             if (textUI != null) textUI.text = $"{item.itemName} <color=#FFFF00>x{count}</color>";
 
             Button btn = btnObj.GetComponent<Button>();
-            if (btn != null)
-            {
-                btn.onClick.AddListener(() => OnIngredientClicked(item));
-            }
+            if (btn != null) btn.onClick.AddListener(() => OnIngredientClicked(item));
         }
     }
 
@@ -109,19 +119,12 @@ public class BioReactorUI : MonoBehaviour
 
             if (prefabToDrop != null)
             {
-                // 決定したプレハブを、フラスコの上空にランダムな角度で生成
                 GameObject droppedObj = Instantiate(prefabToDrop, dropPoint.position, UnityEngine.Random.rotation);
-                
-                // 落下物に「君はこのアイテムのデータだよ」と教え込む
                 IngredientObject ingredientScript = droppedObj.GetComponent<IngredientObject>();
-                if (ingredientScript != null)
-                {
-                    ingredientScript.ingredientData = item; 
-                }
+                if (ingredientScript != null) ingredientScript.ingredientData = item; 
             }
             else
             {
-                Debug.LogWarning($"{item.itemName} の落下プレハブがないため、直接フラスコに投入しました。");
                 FlaskReceiver.Instance.AddIngredient(item);
             }
         }
@@ -131,13 +134,14 @@ public class BioReactorUI : MonoBehaviour
     {
         if (mainWindow != null) mainWindow.SetActive(false);
         if (ingredientScrollView != null) ingredientScrollView.SetActive(false);
-
+        
+        SetExtractionButtonVisible(false);
+        SetStartSpinButtonVisible(false);
 
         onCloseCallback?.Invoke();
         onCloseCallback = null;
 
         if (GameManager.Instance != null) GameManager.Instance.UnlockPlayer();
-
         if (UIManager.Instance != null) UIManager.Instance.SetDialogueMode(false); 
         if (UIManager.Instance != null) UIManager.Instance.SetHUDVisible(true);
     }

@@ -68,6 +68,10 @@ public class GameEventData : ScriptableObject
     [Tooltip("ONにすると、このイベント会話中もプレイヤーが操作可能（ながら会話）になります")]
     public bool canInteractDuringDialogue = false;
 
+    [Header("演出設定")]
+    [Tooltip("イベント開始時に画面の暗転（フェードアウト・イン）を挟むかどうか。チェックを外すとシームレスに始まります。")]
+    public bool useScreenFade = true;
+
     [Header("会話データ (ConversationOnly用)")]
     [Tooltip("上から順番にテキストが表示されます。PlayableIncidentの場合は空でOKです。")]
     public List<DialogueData.Sentence> sentences = new List<DialogueData.Sentence>();

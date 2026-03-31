@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 67f2546f48d85e94491e1fb61862cc9e, type: 3}
+  m_Name: ReactorTurorial
+  m_EditorClassIdentifier: 
+  requiredDay: 1
+  triggerType: 1
+  interactTargetID: BioReactor
+  triggerTiming: 1
+  requiredFlagName: 
+  requiredFlagValue: 0
+  type: 0
+  eventMemo: "\u30BD\u30CA\u30FC\u64CD\u4F5C\u306E\u30C1\u30E5\u30FC\u30C8\u30EA\u30A2\u30EB"
+  startEventFlag: TestQuest
+  canInteractDuringDialogue: 0
+  useScreenFade: 0
+  sentences:
+  - label: 
+    speakerName: "\u795E\u7530\u30DE\u30B5\u30D5\u30DF"
+    portrait: {fileID: 0}
+    text: "\u3053\u308C\u306F\u30C6\u30B9\u30C8\u3067\u3059"
+    fullScreenImage: {fileID: 0}
+    videoClip: {fileID: 0}
+    clearMedia: 0
+    waitVideoFinish: 0
+    voicePitch: 0
+    choices: []
+    forceJumpLabel: 
+  targetStageID: 
+  nextPhaseAfterEvent: 1
+  setFlagOnComplete: 

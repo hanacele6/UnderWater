@@ -16,7 +16,7 @@ public class FlaskReceiver : MonoBehaviour
     public float maxLiquidAmount = 100f;
 
     public bool isMixingComplete = false;
-    public bool IsFull => currentLiquidAmount >= (maxLiquidAmount - 0.3f);
+    public bool IsFull => currentLiquidAmount >= (maxLiquidAmount - 5.0f);
 
     [Header("フラスコの内容物（固体・成分）")]
     public List<ItemData> addedItems = new List<ItemData>();
