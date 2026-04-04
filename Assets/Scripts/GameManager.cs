@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.Events;
 using System.Collections.Generic;
 using System.Collections;
-
+using System;
 // 1日のフェーズ（状態）を定義
 public enum GamePhase
 {
@@ -25,6 +25,7 @@ public class GameManager : MonoBehaviour
     [Header("フラグ管理")]
     public Dictionary<string, bool> gameFlags = new Dictionary<string, bool>();
     public UnityEvent<GamePhase> OnPhaseChanged;
+    public event Action<int> OnDayChanged;
 
     // ==========================================
     // データ駆動：フェーズ移行ルールの設定
@@ -643,6 +644,7 @@ public class GameManager : MonoBehaviour
     public void GoToNextDay()
     {
         currentDay++;
+        OnDayChanged?.Invoke(currentDay);
         StartDay();
     }
 

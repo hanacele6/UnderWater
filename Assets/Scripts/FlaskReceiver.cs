@@ -29,10 +29,10 @@ public class FlaskReceiver : MonoBehaviour
     public Image progressFillImage;    
 
     [Header("完成品データベース")]
-    public List<GrownSampleData> allRecipes = new List<GrownSampleData>();
-    public GrownSampleData defaultSludge; 
+    public List<MixRecipeData> allRecipes = new List<MixRecipeData>();
+    public MixRecipeData defaultSludge; 
     
-    public GrownSampleData completedResult = null;
+    public MixRecipeData completedResult = null;
 
     private const string FillLevelProp = "_FillLevel";
     private Material liquidMat;
@@ -161,14 +161,14 @@ public class FlaskReceiver : MonoBehaviour
     public void SetProgressBarVisible(bool isVisible)
     {
         if (isMixingComplete && isVisible) return;
-
         if (progressBarRoot != null) progressBarRoot.SetActive(isVisible);
     }
+    
     private bool isProcessingSynthesis = false;
     
     public void AddMixProgress(float amount)
     {
-        if (!IsFull || addedItems.Count == 0 || isProcessingSynthesis || isMixingComplete) return;
+        if (currentLiquidAmount <= 0.1f || addedItems.Count == 0 || isProcessingSynthesis || isMixingComplete) return;
 
         mixProgress += amount;
         mixProgress = Mathf.Clamp(mixProgress, 0, 100f);
@@ -188,7 +188,7 @@ public class FlaskReceiver : MonoBehaviour
 
         try
         {
-            GrownSampleData result = null;
+            MixRecipeData result = null;
             int highestPriority = -1;
 
             if (allRecipes != null)
@@ -212,7 +212,7 @@ public class FlaskReceiver : MonoBehaviour
 
             if (result != null)
             {
-                Debug.Log($"✨ 完成したタネ：【{result.sampleName}】 ✨");
+                Debug.Log($"✨ 完成したタネ：【{result.recipeName}】 ✨");
                 
                 Color resultColor = result.potionColor;
                 
@@ -226,7 +226,6 @@ public class FlaskReceiver : MonoBehaviour
                 Debug.LogWarning("注意：インスペクターの Default Sludge が設定されていません！");
             }
             
-            // 💡 状態を「完了」にロックする
             isMixingComplete = true;
         }
         catch (Exception e)
@@ -252,14 +251,13 @@ public class FlaskReceiver : MonoBehaviour
 
         UpdateShaderFillLevel();
 
-        // 液体の色をデフォルトの透明な水色に戻す
         if (mixColorCoroutine != null) StopCoroutine(mixColorCoroutine);
         mixColorCoroutine = StartCoroutine(SmoothColorMix(defaultColor));
 
         Debug.Log("フラスコが空になりました！次の調合が可能です。");
     }
 
-    private bool CheckRecipeCondition(GrownSampleData recipe)
+    private bool CheckRecipeCondition(MixRecipeData recipe)
     {
         if (recipe == null) return false;
 

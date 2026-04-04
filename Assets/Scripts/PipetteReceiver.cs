@@ -12,7 +12,8 @@ public class PipetteReceiver : MonoBehaviour
     public Renderer liquidRenderer;
 
     public bool IsFull => currentLiquid >= (maxLiquid - 0.5f);
-    public GrownSampleData receivedPotion { get; private set; }
+    
+    public MixRecipeData receivedPotion { get; private set; }
 
     private Material liquidMat;
     private const string FillLevelProp = "_FillLevel";
@@ -29,7 +30,7 @@ public class PipetteReceiver : MonoBehaviour
     }
 
     // フラスコから「毎フレーム」呼ばれて少しずつ溜まる
-    public void ReceiveLiquid(float amount, GrownSampleData potionData)
+    public void ReceiveLiquid(float amount, MixRecipeData potionData)
     {
         if (IsFull) return;
 
@@ -59,7 +60,7 @@ public class PipetteReceiver : MonoBehaviour
         if (currentLiquid >= maxLiquid)
         {
             currentLiquid = maxLiquid;
-            Debug.Log($"🧬 ピペットが【{receivedPotion.sampleName}】で満タンになりました！次のピペットへ！");
+            Debug.Log($"🧬 ピペットが【{receivedPotion.recipeName}】で満タンになりました！次のピペットへ！");
         }
     }
 
