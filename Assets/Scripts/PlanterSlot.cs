@@ -60,6 +60,66 @@ public class PlanterSlot : MonoBehaviour
         }
     }
 
+    void OnMouseDown()
+    {
+        // UI（ボタンなど）の上にマウスがある時は無効化
+        if (UnityEngine.EventSystems.EventSystem.current != null && 
+            UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()) return;
+
+        if (isReadyToHarvest)
+        {
+            // 🌾 収穫する！
+            SampleItemData harvestedItem = Harvest();
+            if (harvestedItem != null)
+            {
+                InventoryManager.Instance.AddItem(harvestedItem);
+                Debug.Log($"🌾 【{harvestedItem.itemName}】を収穫し、インベントリに入れました！");
+                
+                // （おまけ）ここでキラキラエフェクトや音を鳴らすと最高です
+            }
+        }
+        else if (!isPlanted)
+        {
+            // 🌱 空っぽなら「種まきUI」を開く！
+            // 司令塔に「私（このスロット）に植えるためのUIを開いて！」とお願いする
+            if (CultivatorConsole.Instance != null)
+            {
+                CultivatorConsole.Instance.OpenSeedSelectionUI(this);
+            }
+        }
+        else
+        {
+            // 成長中
+            Debug.Log("⏳ まだ成長中です……。");
+        }
+    }
+
+    public SampleItemData Harvest()
+    {
+        // まだ育っていない、またはレシピが無い場合は何も返さない
+        if (!isReadyToHarvest || currentRecipe == null) return null;
+
+        // 💡 収穫物（完成品データ）をレシピから取得する
+        SampleItemData harvestedItem = currentRecipe.finalSample; 
+
+        // --- 土を空っぽ（初期状態）にリセットする ---
+        isPlanted = false;
+        isReadyToHarvest = false;
+        currentRecipe = null;
+        plantedDay = 0;
+        currentStage = -1;
+        
+        // 成長した3Dモデルを消滅させる
+        if (currentVisual != null) 
+        {
+            Destroy(currentVisual);
+            currentVisual = null;
+        }
+
+        // 収穫したアイテムデータを返す
+        return harvestedItem; 
+    }
+
     private void UpdateVisual(int stageIndex)
     {
         if (currentVisual != null) Destroy(currentVisual);

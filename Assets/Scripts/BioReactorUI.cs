@@ -8,7 +8,7 @@ using System;
 public class BioReactorUI : MonoBehaviour
 {
     [Header("UIのON/OFF制御")]
-    public GameObject mainWindow; 
+    //public GameObject mainWindow; 
     public GameObject ingredientScrollView; 
 
     [Header("UI参照")]
@@ -26,13 +26,13 @@ public class BioReactorUI : MonoBehaviour
     public Transform dropPoint; 
     public GameObject defaultDropPrefab;
 
-    private Action onCloseCallback;
+    //private Action onCloseCallback;
 
    public void OpenReactorUI(Action onClose = null)
     {
-        onCloseCallback = onClose;
+        //onCloseCallback = onClose;
 
-        if (mainWindow != null) mainWindow.SetActive(true);
+        //if (mainWindow != null) mainWindow.SetActive(true);
         
         if (ingredientScrollView != null) ingredientScrollView.SetActive(false); 
         SetExtractionButtonVisible(false);
@@ -131,18 +131,16 @@ public class BioReactorUI : MonoBehaviour
     }
 
     public void CloseUI()
-    {
-        if (mainWindow != null) mainWindow.SetActive(false);
-        if (ingredientScrollView != null) ingredientScrollView.SetActive(false);
-        
-        SetExtractionButtonVisible(false);
-        SetStartSpinButtonVisible(false);
+{
+    //if (mainWindow != null) mainWindow.SetActive(false);
+    if (ingredientScrollView != null) ingredientScrollView.SetActive(false);
+    
+    SetExtractionButtonVisible(false);
+    SetStartSpinButtonVisible(false);
 
-        onCloseCallback?.Invoke();
-        onCloseCallback = null;
+    //onCloseCallback?.Invoke();
+    //onCloseCallback = null;
+    
 
-        if (GameManager.Instance != null) GameManager.Instance.UnlockPlayer();
-        if (UIManager.Instance != null) UIManager.Instance.SetDialogueMode(false); 
-        if (UIManager.Instance != null) UIManager.Instance.SetHUDVisible(true);
-    }
+}
 }

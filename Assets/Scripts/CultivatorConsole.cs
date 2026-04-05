@@ -3,9 +3,10 @@ using System.Collections.Generic;
 
 public class CultivatorConsole : MonoBehaviour, IInteractable
 {
+    public static CultivatorConsole Instance;
     [Header("UI・カメラ連携")]
     public GameObject cultivatorPanel; // 培養用のUIパネル
-    // public CultivatorUI cultivatorUI; // ※後で作ります
+    public CultivatorUI cultivatorUI;
     public GameObject playerCamera;
     public GameObject deskCamera; 
     
@@ -15,6 +16,14 @@ public class CultivatorConsole : MonoBehaviour, IInteractable
 
     [Header("花壇の土（スロット）一覧")]
     public List<PlanterSlot> planterSlots = new List<PlanterSlot>();
+
+    [Tooltip("ゲーム内に存在する『すべての培養レシピ』をここに登録する")]
+    public List<CultivationRecipeData> allCultivationRecipes = new List<CultivationRecipeData>();
+
+    void Awake()
+    {
+        Instance = this; 
+    }
 
     public string GetInteractPrompt()
     {
@@ -54,6 +63,7 @@ public class CultivatorConsole : MonoBehaviour, IInteractable
     // UIを閉じる時の処理（UI側の Close ボタン等から呼ばれる想定）
     public void CloseConsole()
     {
+        
         if (cultivatorPanel != null) cultivatorPanel.SetActive(false);
 
         if (playerCamera != null) playerCamera.SetActive(true);
@@ -66,6 +76,14 @@ public class CultivatorConsole : MonoBehaviour, IInteractable
         if (UIManager.Instance != null) {
             UIManager.Instance.SetDialogueMode(false); 
             UIManager.Instance.SetHUDVisible(true); 
+        }
+    }
+
+    public void OpenSeedSelectionUI(PlanterSlot targetSlot)
+    {
+        if (cultivatorUI != null)
+        {
+            cultivatorUI.OpenSeedList(targetSlot);
         }
     }
 }

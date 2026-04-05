@@ -101,6 +101,7 @@ public class BioReactorConsole : MonoBehaviour, IInteractable
             deskCamera.transform.localRotation = Quaternion.Euler(mixingCamLocalRot);
         }
         if (bioReactorPanel != null) bioReactorPanel.SetActive(true);
+        /*
         if (reactorUI != null)
         {
             reactorUI.OpenReactorUI(() => 
@@ -122,6 +123,12 @@ public class BioReactorConsole : MonoBehaviour, IInteractable
                     UIManager.Instance.SetHUDVisible(true);
                 }
             });
+        }
+        */
+
+        if (reactorUI != null)
+        {
+            reactorUI.OpenReactorUI(); 
         }
 
         if (GameManager.Instance != null)
@@ -231,6 +238,36 @@ public class BioReactorConsole : MonoBehaviour, IInteractable
         if (centrifugeSlots != null) centrifugeSlots.gameObject.SetActive(false);
         if (deskCamera != null) deskCamera.transform.localPosition = mixingCamLocalPos;
         
-        if (reactorUI != null) reactorUI.CloseUI();
+        CloseConsole();
     }
+
+    public void CloseConsole()
+{
+    // 1. まずUIとパネルを閉じる
+    if (reactorUI != null) reactorUI.CloseUI(); // ←変数名を reactorUI に修正
+    if (bioReactorPanel != null) bioReactorPanel.SetActive(false); // 全体の背景も消す
+
+    // 2. カメラをプレイヤーに戻す
+    if (playerCamera != null) playerCamera.SetActive(true);
+    if (deskCamera != null) deskCamera.SetActive(false);
+
+    // 3. インタラクト（ハイライト）を復活させる
+    InteractableHighlight highlight = GetComponent<InteractableHighlight>();
+    if (highlight != null) highlight.isHighlightable = true;
+
+    // 4. プレイヤーのロックを解除する
+    if (GameManager.Instance != null) 
+    {
+        GameManager.Instance.isUIOpen = false;
+        GameManager.Instance.UnlockPlayer();
+    }
+
+    // 5. HUD（体力ゲージなど）を再表示する
+    if (UIManager.Instance != null) 
+    {
+        UIManager.Instance.SetInteractUIVisible(true); 
+        UIManager.Instance.SetDialogueMode(false); 
+        UIManager.Instance.SetHUDVisible(true);
+    }
+}
 }

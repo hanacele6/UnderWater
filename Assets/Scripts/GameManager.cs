@@ -464,7 +464,6 @@ public class GameManager : MonoBehaviour
         foreach (var mission in missionList)
         {
             // ① 目標を「達成」した時の通知
-            // ★変更：更新されたフラグが、このミッションの条件リストに含まれているか？
             if (mission.targetFlagNames.Contains(updatedFlag) && GetFlag(updatedFlag) == true)
             {
                 // リストに含まれていた場合、ミッションの「全て」のフラグがONになったか確認する
@@ -641,6 +640,7 @@ public class GameManager : MonoBehaviour
             SubmarineHUD.Instance.UpdateMissionListText(missionListDisplay);
     }
 
+    [ContextMenu("日数を進めるテスト")]
     public void GoToNextDay()
     {
         currentDay++;

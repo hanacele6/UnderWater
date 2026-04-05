@@ -16,6 +16,7 @@ MonoBehaviour:
   requiredSeed: {fileID: 11400000, guid: 76f76705f43a6fd46b6c6a04c38d3598, type: 2}
   daysToGrow: 3
   growthPrefabs:
-  - {fileID: 0}
-  - {fileID: 0}
-  finalSample: {fileID: 0}
+  - {fileID: 8787648275165491616, guid: 71658948068c0004eba684ad618ff7cc, type: 3}
+  - {fileID: 480459898896506852, guid: e9e3b92504c749448ae24ed95b8a3126, type: 3}
+  - {fileID: 6949343791135807457, guid: 1e378785f34e65e46a1b96ba2cb709a2, type: 3}
+  finalSample: {fileID: 11400000, guid: 68d740e60cb8356438ea1f06b0397353, type: 2}
