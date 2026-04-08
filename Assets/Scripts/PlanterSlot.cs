@@ -9,7 +9,8 @@ public class PlanterSlot : MonoBehaviour
 
     [Header("3Dモデル設定")]
     public Transform plantSpawnPoint;
-    [Tooltip("成長段階ごとのモデル（0:芽, 1:成長中, 2:完成体 など）")]
+    
+    [Tooltip("※現在はレシピ側のデータを使用します")]
     public List<GameObject> growthPrefabs = new List<GameObject>();
 
     private GameObject currentVisual;
@@ -19,13 +20,11 @@ public class PlanterSlot : MonoBehaviour
 
     void Start()
     {
-        // GameManagerの「OnDayChanged」というスピーカーに、自分の成長メソッドを登録する
         if (GameManager.Instance != null)
         {
             GameManager.Instance.OnDayChanged += OnDayChanged;
         }
     }
-
 
     public void OnDayChanged(int currentDay)
     {
@@ -35,9 +34,7 @@ public class PlanterSlot : MonoBehaviour
         int elapsedDays = currentDay - plantedDay;
         float progress = Mathf.Clamp01((float)elapsedDays / currentRecipe.daysToGrow);
 
-  
-        // 例：3段階のモデルがあるなら、0~33%はStage0、34~66%はStage1...
-        int stageCount = growthPrefabs.Count;
+        int stageCount = currentRecipe.growthPrefabs.Count;
         int targetStage = Mathf.Min(Mathf.FloorToInt(progress * stageCount), stageCount - 1);
 
         if (targetStage != currentStage)
@@ -45,13 +42,12 @@ public class PlanterSlot : MonoBehaviour
             UpdateVisual(targetStage);
         }
 
-        // 💡 スケールの計算（各段階の中で 0.5 ~ 1.0 に膨らむなど）
+        // 成長に合わせてスケールを更新
         if (currentVisual != null)
         {
-            float stageProgress = (progress * stageCount) % 1.0f;
-            if (progress >= 1.0f) stageProgress = 1.0f;
-            float scale = Mathf.Lerp(0.5f, 1.0f, stageProgress);
-            currentVisual.transform.localScale = Vector3.one * scale;
+            float multiplier = Mathf.Lerp(currentRecipe.startScaleMultiplier, currentRecipe.endScaleMultiplier, progress);
+            GameObject originalPrefab = currentRecipe.growthPrefabs[currentStage];
+            currentVisual.transform.localScale = originalPrefab.transform.localScale * multiplier;
         }
 
         if (elapsedDays >= currentRecipe.daysToGrow)
@@ -61,75 +57,108 @@ public class PlanterSlot : MonoBehaviour
     }
 
     void OnMouseDown()
-    {
-        // UI（ボタンなど）の上にマウスがある時は無効化
-        if (UnityEngine.EventSystems.EventSystem.current != null && 
-            UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()) return;
+{
+    if (UnityEngine.EventSystems.EventSystem.current != null && 
+        UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()) return;
 
-        if (isReadyToHarvest)
+    if (isReadyToHarvest)
+    {
+        CultivatorConsole myConsole = GetComponentInParent<CultivatorConsole>();
+        
+        // 自分のコンソールについているスロット「だけ」を取得
+        // （もし単体で置かれていた場合は、自分だけを配列に入れる安全設計）
+        PlanterSlot[] mySlots = myConsole != null 
+            ? myConsole.GetComponentsInChildren<PlanterSlot>() 
+            : new PlanterSlot[] { this }; 
+
+        List<ItemData> totalHarvestResults = new List<ItemData>();
+
+        foreach (var slot in mySlots)
         {
-            // 🌾 収穫する！
-            SampleItemData harvestedItem = Harvest();
-            if (harvestedItem != null)
+            if (slot.isReadyToHarvest)
             {
-                InventoryManager.Instance.AddItem(harvestedItem);
-                Debug.Log($"🌾 【{harvestedItem.itemName}】を収穫し、インベントリに入れました！");
-                
-                // （おまけ）ここでキラキラエフェクトや音を鳴らすと最高です
+                SampleItemData item = slot.Harvest(); 
+                if (item != null)
+                {
+                    // ※ここではインベントリに入れない！（UIのTakeAllItemsで入れるため）
+                    totalHarvestResults.Add(item);
+                }
             }
         }
-        else if (!isPlanted)
+
+        if (totalHarvestResults.Count > 0)
         {
-            // 🌱 空っぽなら「種まきUI」を開く！
-            // 司令塔に「私（このスロット）に植えるためのUIを開いて！」とお願いする
-            if (CultivatorConsole.Instance != null)
+            if (ExtractionUIManager.Instance != null)
             {
-                CultivatorConsole.Instance.OpenSeedSelectionUI(this);
+                if (GameManager.Instance != null)
+                {
+                    GameManager.Instance.isUIOpen = true;
+                    GameManager.Instance.LockPlayer(); // カーソルを出す
+                }
+
+                // UIを開き、閉じた時の「後片付け」を予約する
+                ExtractionUIManager.Instance.OpenExtractionUI(totalHarvestResults, () => 
+                {
+                    if (GameManager.Instance != null)
+                    {
+                        // UnlockPlayer は UIManager 側でやってくれるので、
+                        // ここでは「UI開いてるよフラグ」だけを確実に下ろす！
+                        GameManager.Instance.isUIOpen = false;
+                    }
+                });
             }
-        }
-        else
-        {
-            // 成長中
-            Debug.Log("⏳ まだ成長中です……。");
         }
     }
-
+    else if (!isPlanted)
+    {
+        // 🌱 種まき時も、Instance(全体)ではなく「自分の親コンソール」を呼ぶように変更！
+        // これで複数のコンソールを並べても完璧に動きます。
+        CultivatorConsole myConsole = GetComponentInParent<CultivatorConsole>();
+        if (myConsole != null)
+        {
+            myConsole.OpenSeedSelectionUI(this);
+        }
+    }
+    else
+    {
+        Debug.Log("⏳ まだ成長中です……。");
+    }
+}
+    
     public SampleItemData Harvest()
     {
-        // まだ育っていない、またはレシピが無い場合は何も返さない
         if (!isReadyToHarvest || currentRecipe == null) return null;
 
-        // 💡 収穫物（完成品データ）をレシピから取得する
         SampleItemData harvestedItem = currentRecipe.finalSample; 
 
-        // --- 土を空っぽ（初期状態）にリセットする ---
         isPlanted = false;
         isReadyToHarvest = false;
         currentRecipe = null;
         plantedDay = 0;
         currentStage = -1;
         
-        // 成長した3Dモデルを消滅させる
         if (currentVisual != null) 
         {
             Destroy(currentVisual);
             currentVisual = null;
         }
 
-        // 収穫したアイテムデータを返す
         return harvestedItem; 
     }
 
     private void UpdateVisual(int stageIndex)
     {
+        if (currentRecipe == null || currentRecipe.growthPrefabs == null || currentRecipe.growthPrefabs.Count == 0) return;
+
+        GameObject prefabToSpawn = currentRecipe.growthPrefabs[stageIndex];
+        if (prefabToSpawn == null) return;
+
         if (currentVisual != null) Destroy(currentVisual);
-        
         currentStage = stageIndex;
-        if (growthPrefabs[stageIndex] != null)
-        {
-            currentVisual = Instantiate(growthPrefabs[stageIndex], plantSpawnPoint.position, Quaternion.identity, plantSpawnPoint);
-            currentVisual.transform.localScale = Vector3.one * 0.5f;
-        }
+
+        //currentVisual = Instantiate(prefabToSpawn, plantSpawnPoint.position, Quaternion.identity, plantSpawnPoint);
+        currentVisual = Instantiate(prefabToSpawn, plantSpawnPoint.position, prefabToSpawn.transform.rotation, plantSpawnPoint);
+        
     }
 
     public void PlantSeed(CultivationRecipeData recipe, int currentDay)
@@ -138,6 +167,14 @@ public class PlanterSlot : MonoBehaviour
         plantedDay = currentDay;
         isPlanted = true;
         isReadyToHarvest = false;
-        UpdateVisual(0); // 最初の段階（芽）を表示
+        
+        UpdateVisual(0); 
+
+        if (currentVisual != null && currentRecipe.growthPrefabs.Count > 0)
+        {
+            float multiplier = currentRecipe.startScaleMultiplier;
+            GameObject originalPrefab = currentRecipe.growthPrefabs[0];
+            currentVisual.transform.localScale = originalPrefab.transform.localScale * multiplier;
+        }
     }
 }
