@@ -256,6 +256,7 @@ public class UIManager : MonoBehaviour
             Cursor.visible = true;
             
             SetInteractUIVisible(false); 
+            if (GameManager.Instance != null) GameManager.Instance.LockPlayer();
 
             bool isRadio = DialogueManager.Instance != null && DialogueManager.Instance.isRadioMode;
             if (menuButton != null && !isMenuOpen && !isRadio) 
@@ -278,6 +279,7 @@ public class UIManager : MonoBehaviour
                     Cursor.visible = false;
                     
                     SetInteractUIVisible(true);
+                    if (GameManager.Instance != null) GameManager.Instance.UnlockPlayer();
                 }
             }
 
@@ -290,6 +292,7 @@ public class UIManager : MonoBehaviour
     public void ToggleMenu()
     {
         isMenuOpen = !isMenuOpen;
+        if (GameManager.Instance != null) GameManager.Instance.isUIOpen = isMenuOpen;
         if (menuBackgroundPanel != null) menuBackgroundPanel.SetActive(isMenuOpen);
 
         SetMainMissionPanelVisible(!isMenuOpen);
@@ -301,14 +304,13 @@ public class UIManager : MonoBehaviour
             OpenMainPage();
 
             //if (playerInput != null) playerInput.enabled = false; 
+            if (GameManager.Instance != null) GameManager.Instance.LockPlayer();
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
 
             if (menuButton != null) menuButton.SetActive(false);
 
-            // ==========================================
-            // ★追加：メニューを開いた時、会話ウィンドウを一時的に消す
-            // ==========================================
+
             if (dialoguePanel != null) dialoguePanel.SetActive(false);
         }
         else
@@ -319,15 +321,14 @@ public class UIManager : MonoBehaviour
             if (isTalking)
             {
                 //if (playerInput != null) playerInput.enabled = false;
+                
                 Cursor.lockState = CursorLockMode.None;
                 Cursor.visible = true;
                 
                 if (menuButton != null) menuButton.SetActive(true);
 
-                // ==========================================
-                // ★追加：会話中なら、メニューを閉じた時に会話ウィンドウを復活させる
-                // ==========================================
                 if (dialoguePanel != null) dialoguePanel.SetActive(true);
+                if (GameManager.Instance != null) GameManager.Instance.LockPlayer();
             }
             else
             {
@@ -337,10 +338,8 @@ public class UIManager : MonoBehaviour
                 
                 if (menuButton != null) menuButton.SetActive(false);
 
-                // ==========================================
-                // ★念のため：通常時は会話ウィンドウは出さない
-                // ==========================================
                 if (dialoguePanel != null) dialoguePanel.SetActive(false);
+                if (GameManager.Instance != null) GameManager.Instance.UnlockPlayer();
             }
         }
     }
@@ -515,6 +514,7 @@ public class UIManager : MonoBehaviour
                 //if (playerInput != null) playerInput.enabled = false;
                 Cursor.lockState = CursorLockMode.None;
                 Cursor.visible = true;
+                if (GameManager.Instance != null) GameManager.Instance.LockPlayer();
             }
             else
             {
@@ -522,6 +522,7 @@ public class UIManager : MonoBehaviour
                 //if (playerInput != null) playerInput.enabled = true;
                 Cursor.lockState = CursorLockMode.Locked;
                 Cursor.visible = false;
+                if (GameManager.Instance != null) GameManager.Instance.UnlockPlayer();
             }
         }
     }

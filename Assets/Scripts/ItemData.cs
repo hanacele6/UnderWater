@@ -2,9 +2,10 @@ using UnityEngine;
 using System.Collections.Generic;
 public enum ItemCategory
 {
-    Goods,      // 物品
-    Document,   // 文献
     Material,   // 素材
+    Sample,     // サンプル
+    Document,   // 文献
+    Goods,      // 物品
     Valuable    // 貴重品
 }
 
