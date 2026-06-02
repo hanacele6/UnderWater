@@ -94,47 +94,72 @@ public class MainConsole : MonoBehaviour, IInteractable
     }
 
 
-    // ==========================================
-    // 機能3：メインミッション提出（GameManager連携）
-    // ==========================================
-    [System.Serializable]
-    public class MissionSubmission
+    public GameManager.MissionObjective GetCurrentActiveSubmissionMission()
     {
-        public string missionTitle;
-        public List<ItemRequirement> requirements;
-        public string targetFlagName; // クリア時にONにするGameManagerのフラグ
-        public bool isSubmitted = false;
+        if (GameManager.Instance == null) return null;
+
+        foreach (var mission in GameManager.Instance.missionList)
+        {
+            // 「コンソール提出が必要」かつ「まだ未クリア」かつ「出現条件（日数・フラグ）を満たしている」ものを探す
+            if (!mission.requiresConsoleSubmission) continue;
+
+            // クリア済みか判定
+            bool isCleared = mission.targetFlagNames.Count > 0;
+            foreach (string flagName in mission.targetFlagNames)
+            {
+                if (!GameManager.Instance.GetFlag(flagName)) { isCleared = false; break; }
+            }
+
+            if (isCleared) continue; // クリア済みならパス
+
+            // 出現条件の判定（GameManagerのHUD更新ロジックと同じ）
+            bool isAppearFlagSet = string.IsNullOrEmpty(mission.requiredFlagToAppear) || GameManager.Instance.GetFlag(mission.requiredFlagToAppear);
+            bool isTimeMet = true;
+            if (mission.appearDay > 0)
+            {
+                if (GameManager.Instance.currentDay < mission.appearDay) isTimeMet = false;
+                else if (GameManager.Instance.currentDay == mission.appearDay && GameManager.Instance.currentPhase < mission.appearPhase) isTimeMet = false;
+            }
+            else
+            {
+                if (GameManager.Instance.currentPhase < mission.appearPhase) isTimeMet = false;
+            }
+
+            // すべての表示条件を満たしている任務があれば、それを「今提出すべきミッション」として返す
+            if (isAppearFlagSet && isTimeMet)
+            {
+                return mission;
+            }
+        }
+        return null; // 対象のミッションが今は無い
     }
 
-    [Header("【3】ミッション提出設定")]
-    public List<MissionSubmission> missionSubmissions = new List<MissionSubmission>();
-
     // ミッションのアイテムを提出する処理
-    public bool TrySubmitMission(string flagName)
+    public bool TrySubmitMission(GameManager.MissionObjective mission)
     {
-        MissionSubmission mission = missionSubmissions.Find(m => m.targetFlagName == flagName);
-        if (mission == null || mission.isSubmitted) return false;
+        if (mission == null) return false;
 
-        // 素材のチェックと消費
-        if (!HasRequiredItems(mission.requirements)) return false;
-        ConsumeItems(mission.requirements);
-
-        mission.isSubmitted = true;
+        // 素材のチェック
+        if (!HasRequiredItems(mission.requiredItems)) return false;
         
-        // ★ここだけ GameManager に干渉する！★
+        // 素材の消費
+        ConsumeItems(mission.requiredItems);
+
+        // ★ GameManager側のクリアフラグをすべてONにする！
         if (GameManager.Instance != null)
         {
-            GameManager.Instance.SetFlag(mission.targetFlagName, true);
+            foreach (string flag in mission.targetFlagNames)
+            {
+                GameManager.Instance.SetFlag(flag, true);
+            }
+            // ログやHUDの再更新をかける
+            GameManager.Instance.UpdateMainMissionHUD();
         }
 
-        Debug.Log($"ミッション達成！フラグ起動：{mission.targetFlagName}");
+        Debug.Log($"コンソール：ミッション『{mission.displayText}』の素材提出が完了しました！");
         return true;
     }
 
-
-    // ==========================================
-    // 共通の便利メソッド群
-    // ==========================================
     private bool HasRequiredItems(List<ItemRequirement> reqs)
     {
         foreach (var req in reqs)
@@ -152,13 +177,15 @@ public class MainConsole : MonoBehaviour, IInteractable
         }
     }
 
-    // プレイヤーがアクセスした時
     public string GetInteractPrompt() => "メインコンソールを起動する";
 
     public void Interact()
     {
-        // 💡 ここで3つの機能を持った「大型UI」を開く処理を呼び出す
-        Debug.Log("メインコンソールを開きました！");
-        // MainConsoleUI.Instance.OpenUI();
+        if (MainConsoleUI.Instance != null)
+        {
+            MainConsoleUI.Instance.OpenConsole();
+        }
     }
+    
 }
+

@@ -541,6 +541,13 @@ public class GameManager : MonoBehaviour
         [Tooltip("ソナーに表示する実際の目的地（岩や沈没船など）")]
         public Transform sonarTargetLocation;
 
+        [Header("メインコンソール提出設定")]
+        [Tooltip("チェックを入れると、メインコンソールでの素材提出が必要な任務になります")]
+        public bool requiresConsoleSubmission = false;
+        
+        [Tooltip("メインコンソールで要求する素材と個数のリスト")]
+        public List<ItemRequirement> requiredItems = new List<ItemRequirement>();
+
         [HideInInspector]
         public bool hasNotifiedClear = false;
     }

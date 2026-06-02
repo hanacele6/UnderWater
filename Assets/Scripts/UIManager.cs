@@ -81,6 +81,12 @@ public class UIManager : MonoBehaviour
         //if (dialoguePanel != null) dialoguePanel.SetActive(false);
     }
 
+    private void Start()
+    {
+        SetHUDVisible(true);
+        SetInteractUIVisible(true);
+    }
+
     public bool canOpenMenu = true;
 
     private void Update()
@@ -99,7 +105,7 @@ public class UIManager : MonoBehaviour
         */
 
         // TABキーでメニュー全体の開閉
-        if (canOpenMenu && Input.GetKeyDown(KeyCode.Tab))
+        if ((canOpenMenu || isMenuOpen) && Input.GetKeyDown(KeyCode.Tab))
         {
             ToggleMenu();
         }
@@ -289,28 +295,29 @@ public class UIManager : MonoBehaviour
     // ==========================================
     // メニューの開閉処理
     // ==========================================
+    // ==========================================
+    // メニューの開閉処理
+    // ==========================================
     public void ToggleMenu()
     {
         isMenuOpen = !isMenuOpen;
         if (GameManager.Instance != null) GameManager.Instance.isUIOpen = isMenuOpen;
         if (menuBackgroundPanel != null) menuBackgroundPanel.SetActive(isMenuOpen);
 
-        SetMainMissionPanelVisible(!isMenuOpen);
-        SetInteractUIVisible(!isMenuOpen);
+        // 💡 個別に呼ぶのをやめて、フェーズ表示も一括で管理する SetHUDVisible に差し替え！
+        // メニューが開いている時（isMenuOpen = true）は、HUDは非表示（false）にします
+        SetHUDVisible(!isMenuOpen);
 
         if (isMenuOpen)
         {
             HideMessage();
             OpenMainPage();
 
-            //if (playerInput != null) playerInput.enabled = false; 
             if (GameManager.Instance != null) GameManager.Instance.LockPlayer();
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
 
             if (menuButton != null) menuButton.SetActive(false);
-
-
             if (dialoguePanel != null) dialoguePanel.SetActive(false);
         }
         else
@@ -320,24 +327,19 @@ public class UIManager : MonoBehaviour
 
             if (isTalking)
             {
-                //if (playerInput != null) playerInput.enabled = false;
-                
                 Cursor.lockState = CursorLockMode.None;
                 Cursor.visible = true;
                 
                 if (menuButton != null) menuButton.SetActive(true);
-
                 if (dialoguePanel != null) dialoguePanel.SetActive(true);
                 if (GameManager.Instance != null) GameManager.Instance.LockPlayer();
             }
             else
             {
-                //if (playerInput != null) playerInput.enabled = true;
                 Cursor.lockState = CursorLockMode.Locked;
                 Cursor.visible = false;
                 
                 if (menuButton != null) menuButton.SetActive(false);
-
                 if (dialoguePanel != null) dialoguePanel.SetActive(false);
                 if (GameManager.Instance != null) GameManager.Instance.UnlockPlayer();
             }
@@ -439,13 +441,21 @@ public class UIManager : MonoBehaviour
     }
 
     // HUDの表示・非表示を切り替えるメソッド
+    // HUDの表示・非表示を切り替えるメソッド
     public void SetMainMissionPanelVisible(bool isVisible)
     {
         if (mainMissionPanel != null)
         {
-            bool hasValidText = !string.IsNullOrEmpty(mainMissionText.text) 
+            // 💡 mainMissionText が空っぽ（None）の時にエラーで死ぬのを防ぐ安全対策！
+            bool hasValidText = false;
+            
+            if (mainMissionText != null)
+            {
+                hasValidText = !string.IsNullOrEmpty(mainMissionText.text) 
                              && mainMissionText.text != "New Text" 
                              && mainMissionText.text != "Text";
+            }
+
             // ただし「表示しろ」と言われても、目的のテキストが空っぽなら枠だけ出さないようにする
             if (isVisible && hasValidText)
             {
@@ -460,7 +470,7 @@ public class UIManager : MonoBehaviour
 
     public void SetInteractUIVisible(bool isVisible)
     {
-        if (isVisible && Cursor.lockState == CursorLockMode.None) return;
+        //if (isVisible && Cursor.lockState == CursorLockMode.None) return;
         if (crosshair != null) crosshair.SetActive(isVisible);
         if (interactPrompt != null) interactPrompt.SetActive(isVisible);
     }
@@ -528,22 +538,24 @@ public class UIManager : MonoBehaviour
     }
 
     public void SetHUDVisible(bool isVisible)
+{
+    
+    SetMainMissionPanelVisible(isVisible);
+    SetInteractUIVisible(isVisible);
+
+    if (phaseDisplayPanel != null) 
     {
-        SetMainMissionPanelVisible(isVisible);
-        SetInteractUIVisible(isVisible);
-
-        if (phaseDisplayPanel != null) phaseDisplayPanel.SetActive(isVisible);
-
-        if (!isVisible)
-        {
-            // 隠す時はメニューボタンも強制的に消す、メニューも開けなくする
-            if (menuButton != null) menuButton.SetActive(false);
-            canOpenMenu = false; 
-        }
-        else
-        {
-            // 戻す時はメニューを開けるようにする
-            canOpenMenu = true; 
-        }
+        phaseDisplayPanel.SetActive(isVisible);
     }
+
+    if (!isVisible)
+    {
+        if (menuButton != null) menuButton.SetActive(false);
+        canOpenMenu = false; 
+    }
+    else
+    {
+        canOpenMenu = true; 
+    }
+}
 }
