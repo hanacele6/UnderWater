@@ -24,7 +24,9 @@ public class MainConsole : MonoBehaviour, IInteractable
         
         public string requiredPreviousID; // 前提となるアップグレードID（空なら最初から解放可能）
         public List<ItemRequirement> requirements; // 必要な素材
-        
+
+        [Header("UI上の配置座標")]
+        public Vector2 uiPosition; 
         public bool isUnlocked = false;   // 解放済みか？
     }
 
@@ -55,7 +57,8 @@ public class MainConsole : MonoBehaviour, IInteractable
         node.isUnlocked = true;
         Debug.Log($"アップグレード完了：{node.displayName}");
         
-        // （ここに潜水艦のステータスを上げる処理を書く）
+        ApplyUpgradeEffect(node.upgradeID);
+
         return true;
     }
 
@@ -91,6 +94,34 @@ public class MainConsole : MonoBehaviour, IInteractable
         Debug.Log($"{equipmentSlots[slotIndex].slotName} に {sampleToEquip.itemName} を装備しました。");
         
         // （ここに装備によるバフ効果を適用する処理を書く）
+    }
+
+    private void ApplyUpgradeEffect(string id)
+    {
+        if (SubmarineStatus.Instance == null) return;
+
+        switch (id)
+        {
+            case "Hull_Lv1":
+                SubmarineStatus.Instance.maxHP += 50f;
+                SubmarineStatus.Instance.currentHP += 50f; // 現在のHPも回復してあげる
+                Debug.Log("装甲が強化され、最大HPが+50されました！");
+                break;
+                
+            case "Hull_Lv2":
+                SubmarineStatus.Instance.maxHP += 100f;
+                SubmarineStatus.Instance.currentHP += 100f;
+                Debug.Log("装甲がさらに強化され、最大HPが+100されました！");
+                break;
+
+            case "Engine_Lv1":
+                // 例：ゲーム側で最高速度を管理している変数があればそれを上げる
+                // PlayerMovement.Instance.maxSpeed += 5f; など
+                Debug.Log("エンジン出力が強化されました！");
+                break;
+
+            // 他にもソナー範囲拡大など、IDごとに好きな処理を書けます！
+        }
     }
 
 

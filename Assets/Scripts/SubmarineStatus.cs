@@ -2,6 +2,8 @@ using UnityEngine;
 using System.Collections.Generic;
 public class SubmarineStatus : MonoBehaviour
 {
+    public static SubmarineStatus Instance { get; private set; }
+    
     [Header("Hull Status (耐久値)")]
     public float maxHP = 100f;
     public float currentHP = 100f;
@@ -21,6 +23,13 @@ public class SubmarineStatus : MonoBehaviour
     private float lastYRotation;
 
     private Rigidbody rb; 
+
+    void Awake()
+    {
+        // 💡 起動時に自分自身を登録
+        if (Instance == null) Instance = this;
+        else Destroy(gameObject);
+    }
 
     void Start()
     {

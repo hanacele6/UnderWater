@@ -21,6 +21,15 @@ public enum ItemTag
     Anomalous       // 異常物質（謎の成分）
 }
 
+public enum EquipSlotType
+{
+    None,           // 装備不可のアイテム
+    Generator,      // メインジェネレーター用
+    Filter,         // サブフィルター用
+    HullArmor,      // 装甲材
+    SonarModule     // ソナーモジュール
+}
+
 // 右クリックメニューからこのデータを作成できるようにする魔法の1行
 [CreateAssetMenu(fileName = "NewItem", menuName = "Inventory/ItemData")]
 public class ItemData : ScriptableObject
@@ -47,4 +56,11 @@ public class ItemData : ScriptableObject
     [Header("調合時の色設定")]
     [Tooltip("フラスコに投入した時に液体に混ざる色")]
     public Color materialColor = Color.white;
+
+    [Header("潜水艦装備設定")]
+    [Tooltip("装備可能な部位。Noneなら装備不可")]
+    public EquipSlotType equipType = EquipSlotType.None;
+    
+    [Tooltip("装備した時の性能アップ値（例：エンジン出力+10 など）")]
+    public float equipPower = 0f;
 }

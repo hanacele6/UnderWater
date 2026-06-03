@@ -75,10 +75,21 @@ public class MainConsoleUI : MonoBehaviour
             tabPanels[i].SetActive(i == index);
         }
 
-        // 💡 ミッションタブ（インデックス2）が開かれたら、画面を最新状態に更新する
+        // タブが開かれたら画面を最新状態に更新する
         if (index == 2)
         {
             RefreshMissionTab();
+        }
+        else if (index == 0) // 💡 ツリータブ（インデックス0）が開かれた時
+        {
+            // Panel_UpgradeTree に付けた UpgradeTreeUI を取得して初期化
+            UpgradeTreeUI treeUI = tabPanels[0].GetComponent<UpgradeTreeUI>();
+            if (treeUI != null) treeUI.InitializeTree();
+        }
+        else if (index == 1) 
+        {
+            EquipmentUI equipUI = tabPanels[1].GetComponent<EquipmentUI>();
+            if (equipUI != null) equipUI.InitializeEquipTab();
         }
     }
 
