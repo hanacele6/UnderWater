@@ -245885,7 +245885,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   upgradeTree:
-  - upgradeID: test1
+  - upgradeID: Hull_Lv1
     displayName: test1
     description: test1
     requiredPreviousID: 
@@ -245897,7 +245897,7 @@ MonoBehaviour:
   - upgradeID: test2
     displayName: test2
     description: test2
-    requiredPreviousID: test1
+    requiredPreviousID: Hull_Lv1
     requirements:
     - item: {fileID: 11400000, guid: 7d912c5db5b7f1146a5c46524ed038ca, type: 2}
       amount: 1
@@ -295444,6 +295444,10 @@ MonoBehaviour:
   repairPoints:
   - {fileID: 1854212307}
   - {fileID: 294211044}
+  speedMultiplier: 1
+  turnMultiplier: 1
+  canUseTurbo: 0
+  canUseDeepSonar: 0
 --- !u!1001 &1848332979
 PrefabInstance:
   m_ObjectHideFlags: 0

@@ -17,6 +17,14 @@ public class SubmarineStatus : MonoBehaviour
     // 中身が null なら「ランダムアイテム」として扱います
     public Queue<ItemData> cargoQueue = new Queue<ItemData>();
     public RepairPoint[] repairPoints; // 艦内に配置した修復ポイントのリスト
+
+    [Header("Upgrade Modifiers (強化補正)")]
+    public float speedMultiplier = 1.0f; // 移動速度の倍率（1.0 = 100%）
+    public float turnMultiplier = 1.0f;  // 旋回速度の倍率
+
+    [Header("Unlocked Skills (解放済みスキル)")]
+    public bool canUseTurbo = false;     // 例：ダッシュスキルが使えるか？
+    public bool canUseDeepSonar = false; // 例：深海用ソナーが使えるか？
     
 
     private Vector3 lastPosition;

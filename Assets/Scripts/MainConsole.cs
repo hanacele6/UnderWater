@@ -102,25 +102,37 @@ public class MainConsole : MonoBehaviour, IInteractable
 
         switch (id)
         {
+            // ─── ステータス強化系 ───
             case "Hull_Lv1":
                 SubmarineStatus.Instance.maxHP += 50f;
-                SubmarineStatus.Instance.currentHP += 50f; // 現在のHPも回復してあげる
-                Debug.Log("装甲が強化され、最大HPが+50されました！");
+                SubmarineStatus.Instance.currentHP += 50f; // 上限アップと同時に回復
+                Debug.Log("【強化】装甲Lv1：最大HPが +50 されました！");
                 break;
                 
-            case "Hull_Lv2":
-                SubmarineStatus.Instance.maxHP += 100f;
-                SubmarineStatus.Instance.currentHP += 100f;
-                Debug.Log("装甲がさらに強化され、最大HPが+100されました！");
-                break;
-
             case "Engine_Lv1":
-                // 例：ゲーム側で最高速度を管理している変数があればそれを上げる
-                // PlayerMovement.Instance.maxSpeed += 5f; など
-                Debug.Log("エンジン出力が強化されました！");
+                SubmarineStatus.Instance.speedMultiplier += 0.2f; // 速度 +20%
+                Debug.Log("【強化】エンジンLv1：移動速度が 20% アップしました！");
                 break;
 
-            // 他にもソナー範囲拡大など、IDごとに好きな処理を書けます！
+            case "Steering_Lv1":
+                SubmarineStatus.Instance.turnMultiplier += 0.5f; // 旋回力 +50%
+                Debug.Log("【強化】操舵Lv1：旋回速度が 50% アップしました！");
+                break;
+
+            // ─── スキル解放系（将来用） ───
+            case "Skill_Turbo":
+                SubmarineStatus.Instance.canUseTurbo = true;
+                Debug.Log("【スキル解放】ターボブースト機能がシステムにインストールされました！");
+                break;
+
+            case "Skill_DeepSonar":
+                SubmarineStatus.Instance.canUseDeepSonar = true;
+                Debug.Log("【スキル解放】深海探査用ソナーが使用可能になりました！");
+                break;
+
+            default:
+                Debug.LogWarning($"未設定のアップグレードIDです: {id}");
+                break;
         }
     }
 
