@@ -103,4 +103,55 @@ public class SubmarineStatus : MonoBehaviour
             intactPoints[randomIndex].SetBrokenState(true);
         }
     }
+
+    [Header("パッシブ特殊効果フラグ")]
+    public bool hasAutoRepair = false; // 自動修復パッシブを持っているか
+
+    // 💡 汎用エフェクトパイプライン（一括処理用）
+    // isApplying: trueなら効果を乗せる(装備/解放)、falseなら効果を引く(外す)
+    public void ApplyEffects(List<SubmarineEffect> effects, bool isApplying)
+    {
+        float sign = isApplying ? 1f : -1f;
+
+        foreach (var effect in effects)
+        {
+            float finalValue = effect.value * sign;
+
+            switch (effect.effectType)
+            {
+                case SubmarineEffectType.MaxHP:
+                    maxHP += finalValue;
+                    currentHP = Mathf.Clamp(currentHP + finalValue, 0, maxHP);
+                    Debug.Log($"パイプライン：最大HPが {finalValue} 変動しました。(現在:{maxHP})");
+                    break;
+
+                case SubmarineEffectType.SpeedMultiplier:
+                    speedMultiplier += finalValue;
+                    Debug.Log($"パイプライン：速度倍率が {finalValue} 変動しました。(現在:{speedMultiplier})");
+                    break;
+
+                case SubmarineEffectType.TurnMultiplier:
+                    turnMultiplier += finalValue;
+                    Debug.Log($"パイプライン：旋回倍率が {finalValue} 変動しました。(現在:{turnMultiplier})");
+                    break;
+
+                // ─── スキル・特殊効果系 ───
+                case SubmarineEffectType.UnlockSkill_Turbo:
+                    // スキルフラグは重複しないよう、適用時はtrue、外す時はfalseにする
+                    canUseTurbo = isApplying;
+                    Debug.Log($"パイプライン：ターボブーストフラグ = {canUseTurbo}");
+                    break;
+
+                case SubmarineEffectType.UnlockSkill_DeepSonar:
+                    canUseDeepSonar = isApplying;
+                    Debug.Log($"パイプライン：深海ソナーフラグ = {canUseDeepSonar}");
+                    break;
+
+                case SubmarineEffectType.Passive_AutoRepair:
+                    hasAutoRepair = isApplying;
+                    Debug.Log($"パイプライン：自動修復パッシブ = {hasAutoRepair}");
+                    break;
+            }
+        }
+    }
 }

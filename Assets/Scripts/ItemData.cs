@@ -60,7 +60,8 @@ public class ItemData : ScriptableObject
     [Header("潜水艦装備設定")]
     [Tooltip("装備可能な部位。Noneなら装備不可")]
     public EquipSlotType equipType = EquipSlotType.None;
-    
-    [Tooltip("装備した時の性能アップ値（例：エンジン出力+10 など）")]
-    public float equipPower = 0f;
+
+    // 💡 単一のパワーではなく、効果の組み合わせリストに変更！
+    [Tooltip("このアイテムを装備した時に発動する効果のリスト（複数設定可能）")]
+    public List<SubmarineEffect> equipEffects = new List<SubmarineEffect>();
 }
