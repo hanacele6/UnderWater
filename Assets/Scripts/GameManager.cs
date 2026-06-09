@@ -521,6 +521,10 @@ public class GameManager : MonoBehaviour
         [Tooltip("クリアに必要なフラグのリスト（全てONでクリア）")]
         public List<string> targetFlagNames = new List<string>();
 
+        [Header("クリア時報酬フラグ")]
+        [Tooltip("この任務を達成した瞬間にONにするフラグ（空欄なら何もしない）")]
+        public string setFlagOnClear;
+
         [Tooltip("このミッションがメニューに表示され始めるフェーズ")]
         public GamePhase appearPhase = GamePhase.Operation; 
         
@@ -530,22 +534,19 @@ public class GameManager : MonoBehaviour
         [Tooltip("このフラグがONの時だけメニューに表示する（空欄なら条件なしで表示）")]
         public string requiredFlagToAppear;
 
-        [Header("ガイド設定（1人称視点用）")]
-        [Tooltip("1人称時の目的地（操舵輪やドアなど。空欄ならガイドなし）")]
-        public Transform targetLocation;
+        [Header("ガイド設定（複数対応）")]
+        [Tooltip("1人称時の目的地（複数の本や端末に対応。空欄ならガイドなし）")]
+        public List<Transform> targetLocations = new List<Transform>();
 
-        [Header("ソナー設定（潜水艦視点用）")]
+        [Header("ソナー設定（複数対応）")]
         [Tooltip("チェックを入れると、潜水艦のソナー画面にマーカーが出ます")]
         public bool showOnSonar = false;
         
-        [Tooltip("ソナーに表示する実際の目的地（岩や沈没船など）")]
-        public Transform sonarTargetLocation;
+        [Tooltip("ソナーに表示する実際の目的地リスト（複数の岩や沈没船など）")]
+        public List<Transform> sonarTargetLocations = new List<Transform>();
 
         [Header("メインコンソール提出設定")]
-        [Tooltip("チェックを入れると、メインコンソールでの素材提出が必要な任務になります")]
         public bool requiresConsoleSubmission = false;
-        
-        [Tooltip("メインコンソールで要求する素材と個数のリスト")]
         public List<ItemRequirement> requiredItems = new List<ItemRequirement>();
 
         [HideInInspector]
@@ -587,38 +588,46 @@ public class GameManager : MonoBehaviour
                 
                 if (SubmarineHUD.Instance != null)
                 {
-                    // 黄色などの目立つ色でコンソールに達成ログを流す
                     SubmarineHUD.Instance.AddLog($"【任務達成】{mission.displayText}", "#FFFF00");
+                }
+
+                // 💡 追加：ミッション達成時に任意のフラグを自動発行する
+                if (!string.IsNullOrEmpty(mission.setFlagOnClear))
+                {
+                    SetFlag(mission.setFlagOnClear, true);
                 }
             }
 
             // ② フラグによる出現条件
             bool isAppearFlagSet = string.IsNullOrEmpty(mission.requiredFlagToAppear) || GetFlag(mission.requiredFlagToAppear);
 
-          
             bool isTimeMet = true;
             if (mission.appearDay > 0)
             {
-                // まだその日になっていない場合
                 if (currentDay < mission.appearDay) isTimeMet = false;
-                // 日数は同じだが、まだ指定されたフェーズになっていない場合
                 else if (currentDay == mission.appearDay && currentPhase < mission.appearPhase) isTimeMet = false;
             }
             else
             {
-                // 日数指定が0（いつでも）でも、フェーズの指定は守る
                 if (currentPhase < mission.appearPhase) isTimeMet = false;
             }
 
             // ★すべての条件（未クリア ＋ フラグON ＋ 時間到達）を満たしている場合のみ表示する
             if (!isCleared && isAppearFlagSet && isTimeMet)
             {
-                if (mission.showOnSonar && mission.sonarTargetLocation != null)
+                // 💡 複数ソナーターゲットの登録
+                if (mission.showOnSonar && mission.sonarTargetLocations != null)
                 {
-                    activeSonarTargets.Add(new SonarManager.MissionSonarData {
-                        target = mission.sonarTargetLocation,
-                        name = mission.displayText
-                    });
+                    foreach (var loc in mission.sonarTargetLocations)
+                    {
+                        if (loc != null)
+                        {
+                            activeSonarTargets.Add(new SonarManager.MissionSonarData {
+                                target = loc,
+                                name = mission.displayText
+                            });
+                        }
+                    }
                 }
 
                 if (mission.showOnSonar)
@@ -631,7 +640,11 @@ public class GameManager : MonoBehaviour
                 if (mission.isMainObjective && string.IsNullOrEmpty(mainQuestText))
                 {
                     mainQuestText = mission.displayText;
-                    if (MissionGuide.Instance != null) MissionGuide.Instance.SetTarget(mission.targetLocation);
+                    
+                    if (MissionGuide.Instance != null && mission.targetLocations.Count > 0)
+                    {
+                        MissionGuide.Instance.SetTargets(mission.targetLocations); 
+                    }
                 }
             }
         }

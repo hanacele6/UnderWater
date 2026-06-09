@@ -72,6 +72,10 @@ public class GameEventData : ScriptableObject
     [Tooltip("イベント開始時に画面の暗転（フェードアウト・イン）を挟むかどうか。チェックを外すとシームレスに始まります。")]
     public bool useScreenFade = true;
 
+    [Header("サウンド設定")]
+    [Tooltip("イベント開始時に流すBGM（空欄なら現在のBGMを継続）")]
+    public AudioClip eventBGM;
+
     [Header("会話データ (ConversationOnly用)")]
     [Tooltip("上から順番にテキストが表示されます。PlayableIncidentの場合は空でOKです。")]
     public List<DialogueData.Sentence> sentences = new List<DialogueData.Sentence>();

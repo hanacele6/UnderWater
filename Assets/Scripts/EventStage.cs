@@ -177,4 +177,28 @@ public class EventStage : MonoBehaviour
         originalPositions.Clear();
         originalRotations.Clear();
     }
+
+    private void OnDrawGizmos()
+    {
+        // Gizmoの色を設定（例：緑色）
+        Gizmos.color = Color.green;
+
+        Vector3 pos = transform.position;
+        Vector3 forward = transform.forward; // オブジェクトが向いている「前」の方向
+
+        // ① 自分の足元（または中心）に少し目立つ球体を描く
+        Gizmos.DrawWireSphere(pos, 0.2f);
+
+        // ② 前方に向かって直線を引く（長さ1.5m）
+        Gizmos.DrawRay(pos, forward * 1.5f);
+
+        // ③ 矢印の「傘」の部分を描いて、どっちを向いているか分かりやすくする
+        // （前方から135度ずつ左右に回転させた短い線を引く）
+        Vector3 rightArrow = Quaternion.AngleAxis(135, Vector3.up) * forward;
+        Vector3 leftArrow = Quaternion.AngleAxis(-135, Vector3.up) * forward;
+        
+        // 線の先端から、左右の傘の線を引く
+        Gizmos.DrawRay(pos + forward * 1.5f, rightArrow * 0.3f);
+        Gizmos.DrawRay(pos + forward * 1.5f, leftArrow * 0.3f);
+    }
 }

@@ -1,91 +1,123 @@
 using UnityEngine;
+using System.Collections.Generic;
 
-[RequireComponent(typeof(InteractableHighlight))] 
 public class MissionGuide : MonoBehaviour
 {
     public static MissionGuide Instance;
 
+    [Header("マーカーのプレハブ")]
+    [Tooltip("さっき作った図形のプレハブを入れてください")]
+    public GameObject markerPrefab;
+
     [Header("動きの設定")]
-    public float heightOffset = 2.0f;  // 対象の頭上に浮かせる高さ
-    public float bobbingSpeed = 2.0f;  // 上下運動のスピード
-    public float bobbingAmount = 0.2f; // 上下運動の幅
+    public float heightOffset = 2.0f;  
+    public float bobbingSpeed = 2.0f;  
+    public float bobbingAmount = 0.2f; 
 
     [Header("非表示設定")]
-    [Tooltip("プレイヤーがこの距離(m)より近づいたらマーカーを隠す")]
     public float hideDistance = 3.0f;
 
-    private Transform currentTarget;
-    private Renderer meshRenderer; // 3D図形の描画コンポーネント
-    private InteractableHighlight highlight; // 光らせるスクリプト
     private Transform playerTransform;
+
+    // 💡 「どのターゲット」に「どのマーカー」が付いているかをペアで記憶する辞書
+    private Dictionary<Transform, GameObject> activeMarkers = new Dictionary<Transform, GameObject>();
 
     void Awake()
     {
         Instance = this;
-
-        // コンポーネントを取得
-        meshRenderer = GetComponent<Renderer>();
-        highlight = GetComponent<InteractableHighlight>();
-
-        // 最初は隠しておく
-        if (meshRenderer != null) meshRenderer.enabled = false;
-        if (highlight != null) highlight.enabled = false;
-
-        // プレイヤーを探して記憶しておく（タグが"Player"になっていること！）
         GameObject player = GameObject.FindWithTag("Player");
         if (player != null) playerTransform = player.transform;
     }
 
-    public void SetTarget(Transform target)
+    // 💡 GameManagerから「複数のターゲット」をまとめて受け取る
+    public void SetTargets(List<Transform> targets)
     {
-        currentTarget = target;
-        UpdateVisibility(); // ターゲットが変わった瞬間に表示判定を行う
+        ClearAllMarkers(); // 一旦古いマーカーを全消去
+
+        if (targets == null || targets.Count == 0 || markerPrefab == null) return;
+
+        foreach (var target in targets)
+        {
+            if (target != null)
+            {
+                // ターゲットの数だけマーカーを生成して、辞書に登録
+                GameObject newMarker = Instantiate(markerPrefab, transform); // 整理のためこのオブジェクトの子にする
+                activeMarkers.Add(target, newMarker);
+            }
+        }
     }
 
     void LateUpdate()
     {
-        if (currentTarget == null) return;
+        if (playerTransform == null || activeMarkers.Count == 0) return;
 
-        // 1. フワフワ移動
-        float newY = currentTarget.position.y + heightOffset + (Mathf.Sin(Time.time * bobbingSpeed) * bobbingAmount);
-        transform.position = new Vector3(currentTarget.position.x, newY, currentTarget.position.z);
+        // 💡 削除待ちのリスト（foreach中に辞書をいじるとエラーになるため）
+        List<Transform> deadTargets = new List<Transform>();
 
-        // 2. kurukurumawasu
-        if (Camera.main != null)
+        foreach (var pair in activeMarkers)
         {
-           transform.Rotate(0f, 45f * Time.deltaTime, 0f);
+            Transform target = pair.Key;
+            GameObject marker = pair.Value;
+
+            // ★ターゲットが破壊（回収）されていたら、死んだリストに入れる
+            if (target == null)
+            {
+                deadTargets.Add(target);
+                Destroy(marker); // マーカーも消す
+                continue;
+            }
+
+            // 1. フワフワ移動と回転
+            float newY = target.position.y + heightOffset + (Mathf.Sin(Time.time * bobbingSpeed) * bobbingAmount);
+            marker.transform.position = new Vector3(target.position.x, newY, target.position.z);
+            
+            if (Camera.main != null)
+            {
+                marker.transform.Rotate(0f, 45f * Time.deltaTime, 0f);
+            }
+
+            // 2. プレイヤーとの距離で表示/非表示を切り替え
+            UpdateVisibility(target, marker);
         }
 
-        // 3. プレイヤーとの距離を計算して表示/非表示を切り替える
-        UpdateVisibility();
+        // 💡 死んだターゲットを辞書から取り除く
+        foreach (var dead in deadTargets)
+        {
+            activeMarkers.Remove(dead);
+        }
     }
 
-    private void UpdateVisibility()
+    private void UpdateVisibility(Transform target, GameObject marker)
     {
-        if (currentTarget == null || playerTransform == null || meshRenderer == null)
-        {
-            if (meshRenderer != null) meshRenderer.enabled = false;
-            if (highlight != null) highlight.enabled = false;
-            return;
-        }
+        Renderer meshRenderer = marker.GetComponentInChildren<Renderer>();
+        InteractableHighlight highlight = marker.GetComponentInChildren<InteractableHighlight>();
 
-        // プレイヤーとマーカーの距離を測る
-        float distance = Vector3.Distance(playerTransform.position, transform.position);
+        float distance = Vector3.Distance(playerTransform.position, marker.transform.position);
 
         if (distance <= hideDistance)
         {
-            // ★指定した距離より近づいた！ → 図形も光もフッと消す
-            meshRenderer.enabled = false;
-            highlight.enabled = false;
+            // 近づいたら消す
+            if (meshRenderer != null) meshRenderer.enabled = false;
+            if (highlight != null) highlight.enabled = false;
         }
         else
         {
-            // 離れている！ → 図形を表示して、ピカピカに光らせる
-            meshRenderer.enabled = true;
-            
-            // 強制的にハイライトをONにする
-            highlight.OutlineMode = InteractableHighlight.Mode.OutlineAll;
-            highlight.enabled = true; 
+            // 離れたら表示して光らせる
+            if (meshRenderer != null) meshRenderer.enabled = true;
+            if (highlight != null)
+            {
+                highlight.OutlineMode = InteractableHighlight.Mode.OutlineAll;
+                highlight.enabled = true;
+            }
         }
+    }
+
+    public void ClearAllMarkers()
+    {
+        foreach (var marker in activeMarkers.Values)
+        {
+            if (marker != null) Destroy(marker);
+        }
+        activeMarkers.Clear();
     }
 }

@@ -40,6 +40,10 @@ public class DialogueData : ScriptableObject
         public Sprite fullScreenImage; // このセリフで表示する全画面画像
         public UnityEngine.Video.VideoClip videoClip; // このセリフで再生する映像
 
+        [Header("演出")]
+        [Tooltip("このセリフが表示された瞬間に鳴らす効果音（空欄なら鳴らさない）")]
+        public AudioClip playSE;
+
         [Tooltip("ONにすると、このセリフになった瞬間に画像/動画を画面から消します")]
         public bool clearMedia; 
 

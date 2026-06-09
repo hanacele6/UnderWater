@@ -4,14 +4,18 @@ using System.Collections;
 // IInteractable を継承
 public class DoorController : MonoBehaviour, IInteractable
 {
-    // ★追加：RequiresFlag（フラグで開くドア）を種類に追加しました
+
     public enum DoorType { Normal, RequiresKey, RequiresFlag, Broken }
     public DoorType doorType;
 
     [Header("鍵が必要な場合のみセット")]
     public ItemData requiredKey;
 
-    // ★追加：フラグ用の変数
+    [Header("イベント連携（オプション）")]
+    [Tooltip("このドアを調べた時に会話などを起こす場合、合言葉を入力（空欄なら通常のドア）")]
+    public string myInteractID;
+
+
     [Header("フラグが必要な場合のみセット")]
     [Tooltip("このフラグがONになっていたら開くようになります")]
     public string requiredFlag;
@@ -86,6 +90,11 @@ public class DoorController : MonoBehaviour, IInteractable
     public void Interact()
     {
         if (isMoving) return;
+
+        if (!string.IsNullOrEmpty(myInteractID) && GameManager.Instance != null)
+        {
+            GameManager.Instance.TriggerInteractEvent(myInteractID);
+        }
 
         if (isOpen && !autoClose)
         {
