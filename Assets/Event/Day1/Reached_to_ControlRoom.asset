@@ -16,36 +16,39 @@ MonoBehaviour:
   triggerType: 0
   interactTargetID: 
   triggerTiming: 0
-  requiredFlagName: Reached_to_ControlRoom_Door
+  requiredFlagName: Reached_to_ControlRoom
   requiredFlagValue: 1
   type: 0
   eventMemo: 
   startEventFlag: 
   canInteractDuringDialogue: 0
   useScreenFade: 1
+  eventBGM: {fileID: 0}
   sentences:
   - label: 
-    speakerName: 
+    speakerName: "\u30AB\u30F3\u30CA"
     portrait: {fileID: 0}
-    text: 
+    text: "\u30C6\u30B9\u30C8"
     fullScreenImage: {fileID: 0}
     videoClip: {fileID: 0}
+    playSE: {fileID: 0}
     clearMedia: 0
     waitVideoFinish: 0
     voicePitch: 0.5
     choices: []
     forceJumpLabel: 
   - label: 
-    speakerName: 
+    speakerName: Player
     portrait: {fileID: 0}
-    text: 
+    text: "\u30C6\u30B9\u30C8"
     fullScreenImage: {fileID: 0}
     videoClip: {fileID: 0}
+    playSE: {fileID: 0}
     clearMedia: 0
     waitVideoFinish: 0
     voicePitch: 0.5
     choices: []
     forceJumpLabel: 
-  targetStageID: 
+  targetStageID: Control Room2
   nextPhaseAfterEvent: 0
-  setFlagOnComplete: Reached_to_ControlRoom
+  setFlagOnComplete: Reached_to_ControlRoom2

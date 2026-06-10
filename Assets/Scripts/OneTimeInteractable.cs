@@ -14,6 +14,10 @@ public class OneTimeInteractable : MonoBehaviour, IInteractable
     [Header("【イベント連携】 (EventOnly / Both 用)")]
     [Tooltip("GameEventDataで設定した interactTargetID と同じ合言葉を入力")]
     public string myInteractID;
+
+    [Header("【直接フラグ操作】")]
+    [Tooltip("調べた瞬間にONにしたいフラグ名（空欄なら何もしない）")]
+    public string setFlagOnInteract;
     
     [Header("【プロンプト設定】")]
     [Tooltip("画面に出る文字（例：読む、拾う、調べる）※アイテムがある場合は自動で『[アイテム名] を〜』になります")]
@@ -83,6 +87,11 @@ public class OneTimeInteractable : MonoBehaviour, IInteractable
             {
                 GameManager.Instance.TriggerInteractEvent(myInteractID);
             }
+        }
+
+        if (!string.IsNullOrEmpty(setFlagOnInteract) && GameManager.Instance != null)
+        {
+            GameManager.Instance.SetFlag(setFlagOnInteract, true);
         }
 
         // 5. フラグ更新とプロンプト消去

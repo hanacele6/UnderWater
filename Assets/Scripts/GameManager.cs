@@ -445,6 +445,17 @@ public class GameManager : MonoBehaviour
         // フラグが「新しく」更新された時だけ、通知とHUDのチェックを行う
         CheckMissionNotification(targetFlagName);
         UpdateMainMissionHUD();
+
+        // 現在イベントが再生中でなければ、新しく条件を満たしたイベントがないか探す
+        if (currentPlayingEvent == null)
+        {
+            GameEventData pendingEvent = CheckForPendingEvents(currentPhase, EventTriggerType.AutoOnPhaseStart);
+            if (pendingEvent != null)
+            {
+                Debug.Log($"フラグ '{targetFlagName}' の更新により、イベントが自動発火しました！");
+                StartEvent(pendingEvent);
+            }
+        }
     }
 
     public bool GetFlag(string targetFlagName)
@@ -674,6 +685,157 @@ public class GameManager : MonoBehaviour
         if (currentStage != null)
         {
             currentStage.LookAtSpeaker(speakerName);
+        }
+    }
+
+    // ==========================================
+    // デバッグ用：現在アクティブなミッションのフラグ状況確認
+    // ==========================================
+    [ContextMenu("🔍 現在のミッションフラグ状況をチェック")]
+    public void DebugMissionFlags()
+    {
+        Debug.Log("<color=cyan>=== 現在発生中（アクティブ）のミッション状況 ===</color>");
+        
+        int activeCount = 0;
+
+        foreach (var mission in missionList)
+        {
+            // 1. 出現条件（フラグ）を満たしているか
+            bool isAppearFlagSet = string.IsNullOrEmpty(mission.requiredFlagToAppear) || GetFlag(mission.requiredFlagToAppear);
+
+            // 2. 出現条件（時間・フェーズ）を満たしているか
+            bool isTimeMet = true;
+            if (mission.appearDay > 0)
+            {
+                if (currentDay < mission.appearDay) isTimeMet = false;
+                else if (currentDay == mission.appearDay && currentPhase < mission.appearPhase) isTimeMet = false;
+            }
+            else
+            {
+                if (currentPhase < mission.appearPhase) isTimeMet = false;
+            }
+
+            // 3. すでにクリア済みかどうかの判定（すべてONならクリア済み）
+            bool isCleared = true;
+            if (mission.targetFlagNames.Count == 0) 
+            {
+                isCleared = false; 
+            }
+            else
+            {
+                foreach (string flagName in mission.targetFlagNames)
+                {
+                    if (!GetFlag(flagName)) 
+                    { 
+                        isCleared = false; 
+                        break; 
+                    }
+                }
+            }
+
+            // ★ 出現条件を満たしており、かつ「未クリア」のもの（＝現在アクティブなもの）だけを表示
+            if (!isCleared && isAppearFlagSet && isTimeMet)
+            {
+                activeCount++;
+                string log = $"<b>任務: {mission.displayText}</b>\n";
+
+                if (mission.targetFlagNames.Count == 0)
+                {
+                    log += "  - 設定されているクリアフラグがありません。\n";
+                }
+                else
+                {
+                    // 複数のフラグを1つずつチェックして出力
+                    foreach (string flag in mission.targetFlagNames)
+                    {
+                        bool isSet = GetFlag(flag);
+                        if (isSet)
+                        {
+                            log += $"  <color=green>[OK]</color> {flag}\n";
+                        }
+                        else
+                        {
+                            log += $"  <color=red>[未達成]</color> {flag}\n";
+                        }
+                    }
+                }
+                Debug.Log(log);
+            }
+        }
+
+        if (activeCount == 0)
+        {
+            Debug.Log("現在アクティブな（発生中の）ミッションはありません。");
+        }
+    }
+
+    // ==========================================
+    // デバッグ用：イベント台本の発生条件チェック
+    // ==========================================
+    [ContextMenu("🔍 現在のイベント進行状況をチェック")]
+    public void DebugGameEvents()
+    {
+        Debug.Log("<color=cyan>=== イベント台本の待機・完了状況 ===</color>");
+
+        // 1. 完了済みのイベント一覧
+        Debug.Log($"<color=gray>【完了済みのイベント: {completedEvents.Count}件】</color>");
+        foreach (var ev in completedEvents)
+        {
+            if (ev != null)
+            {
+                Debug.Log($"  <color=gray>- {ev.name} (クリア済)</color>");
+            }
+        }
+
+        Debug.Log("\n<color=yellow>【未完了（待機中）のイベント】</color>");
+        int pendingCount = 0;
+
+        // 2. まだ起きていないイベントの条件をすべてチェック
+        foreach (var eventData in allGameEvents)
+        {
+            // すでに終わったイベントは除外
+            if (completedEvents.Contains(eventData)) continue;
+
+            pendingCount++;
+            
+            // ScriptableObjectのファイル名を表示
+            string log = $"<b>台本: {eventData.name}</b>\n";
+
+            // ① 日数チェック
+            if (eventData.requiredDay > 0)
+            {
+                bool isDayMatch = (eventData.requiredDay == currentDay);
+                log += isDayMatch ? $"  <color=green>[OK]</color> 日数: Day {eventData.requiredDay}\n" : $"  <color=red>[NG]</color> 日数: Day {eventData.requiredDay} に発生 (現在は Day {currentDay})\n";
+            }
+
+            // ② フェーズチェック
+            bool isPhaseMatch = (eventData.triggerTiming == currentPhase);
+            log += isPhaseMatch ? $"  <color=green>[OK]</color> フェーズ: {eventData.triggerTiming}\n" : $"  <color=red>[NG]</color> フェーズ: {eventData.triggerTiming} のみ (現在は {currentPhase})\n";
+
+            // ③ フラグチェック
+            if (!string.IsNullOrEmpty(eventData.requiredFlagName))
+            {
+                bool currentFlagStatus = GetFlag(eventData.requiredFlagName);
+                bool isFlagMatch = (currentFlagStatus == eventData.requiredFlagValue);
+                string expected = eventData.requiredFlagValue ? "ON" : "OFF";
+                string actual = currentFlagStatus ? "ON" : "OFF";
+
+                log += isFlagMatch ? $"  <color=green>[OK]</color> 必須フラグ: '{eventData.requiredFlagName}' が {expected}\n" : $"  <color=red>[NG]</color> 必須フラグ: '{eventData.requiredFlagName}' が {expected} であること (現在は {actual})\n";
+            }
+
+            // ④ トリガーの種類（どうやって発生するか）
+            log += $"  <color=white>[INFO]</color> トリガー: {eventData.triggerType}\n";
+            if (eventData.triggerType == EventTriggerType.OnInteract) // ユーザーが調べるタイプの場合
+            {
+                 log += $"    ┗ 対象ID: '{eventData.interactTargetID}' を調べた時\n";
+            }
+
+            Debug.Log(log);
+        }
+
+        if (pendingCount == 0)
+        {
+            Debug.Log("未完了のイベントはありません。");
         }
     }
 }

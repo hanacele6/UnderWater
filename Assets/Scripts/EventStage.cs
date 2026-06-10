@@ -180,25 +180,46 @@ public class EventStage : MonoBehaviour
 
     private void OnDrawGizmos()
     {
-        // Gizmoの色を設定（例：緑色）
-        Gizmos.color = Color.green;
+        // ① イベントステージ自体の位置（緑）
+        DrawGizmoArrow(transform, Color.green, 0.2f, 1.5f);
 
-        Vector3 pos = transform.position;
-        Vector3 forward = transform.forward; // オブジェクトが向いている「前」の方向
+        // ② プレイヤーの立ち位置（水色）
+        if (playerStandPoint != null)
+        {
+            DrawGizmoArrow(playerStandPoint, Color.cyan, 0.3f, 1.5f);
+        }
 
-        // ① 自分の足元（または中心）に少し目立つ球体を描く
-        Gizmos.DrawWireSphere(pos, 0.2f);
+        // ③ 登録されている各NPCの立ち位置（黄色）
+        if (actors != null)
+        {
+            foreach (var actor in actors)
+            {
+                if (actor.spawnPoint != null)
+                {
+                    DrawGizmoArrow(actor.spawnPoint, Color.yellow, 0.3f, 1.5f);
+                }
+            }
+        }
+    }
 
-        // ② 前方に向かって直線を引く（長さ1.5m）
-        Gizmos.DrawRay(pos, forward * 1.5f);
+    // 💡 矢印を描画するための便利メソッド
+    private void DrawGizmoArrow(Transform t, Color color, float radius, float arrowLength)
+    {
+        Gizmos.color = color;
+        Vector3 pos = t.position;
+        Vector3 forward = t.forward;
 
-        // ③ 矢印の「傘」の部分を描いて、どっちを向いているか分かりやすくする
-        // （前方から135度ずつ左右に回転させた短い線を引く）
+        // 足元（または中心）の球体
+        Gizmos.DrawWireSphere(pos, radius);
+
+        // 前方への直線
+        Gizmos.DrawRay(pos, forward * arrowLength);
+
+        // 矢印の「傘」の部分
         Vector3 rightArrow = Quaternion.AngleAxis(135, Vector3.up) * forward;
         Vector3 leftArrow = Quaternion.AngleAxis(-135, Vector3.up) * forward;
         
-        // 線の先端から、左右の傘の線を引く
-        Gizmos.DrawRay(pos + forward * 1.5f, rightArrow * 0.3f);
-        Gizmos.DrawRay(pos + forward * 1.5f, leftArrow * 0.3f);
+        Gizmos.DrawRay(pos + forward * arrowLength, rightArrow * 0.3f);
+        Gizmos.DrawRay(pos + forward * arrowLength, leftArrow * 0.3f);
     }
 }

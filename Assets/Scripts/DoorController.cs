@@ -15,6 +15,9 @@ public class DoorController : MonoBehaviour, IInteractable
     [Tooltip("このドアを調べた時に会話などを起こす場合、合言葉を入力（空欄なら通常のドア）")]
     public string myInteractID;
 
+    [Tooltip("このドアを調べた瞬間にONにしたいフラグ名（空欄なら何もしない）")]
+    public string setFlagOnInteract;
+
 
     [Header("フラグが必要な場合のみセット")]
     [Tooltip("このフラグがONになっていたら開くようになります")]
@@ -94,6 +97,11 @@ public class DoorController : MonoBehaviour, IInteractable
         if (!string.IsNullOrEmpty(myInteractID) && GameManager.Instance != null)
         {
             GameManager.Instance.TriggerInteractEvent(myInteractID);
+        }
+
+        if (!string.IsNullOrEmpty(setFlagOnInteract) && GameManager.Instance != null)
+        {
+            GameManager.Instance.SetFlag(setFlagOnInteract, true);
         }
 
         if (isOpen && !autoClose)
