@@ -4,7 +4,6 @@ using System.Collections;
 // IInteractable を継承
 public class DoorController : MonoBehaviour, IInteractable
 {
-
     public enum DoorType { Normal, RequiresKey, RequiresFlag, Broken }
     public DoorType doorType;
 
@@ -18,10 +17,29 @@ public class DoorController : MonoBehaviour, IInteractable
     [Tooltip("このドアを調べた瞬間にONにしたいフラグ名（空欄なら何もしない）")]
     public string setFlagOnInteract;
 
-
     [Header("フラグが必要な場合のみセット")]
     [Tooltip("このフラグがONになっていたら開くようになります")]
     public string requiredFlag;
+
+    // ==========================================
+    // 💡 修正：アクセス制限用の変数を追加
+    // ==========================================
+    [Header("【アクセス制限】")]
+    [Tooltip("このフラグがONの時だけインタラクトできるようにします（空欄ならいつでも可）")]
+    public string requiredFlagToInteract;
+
+    [Header("【メッセージ設定】")]
+    [Tooltip("アクセス制限（まだ入るべきでない時）のメッセージ")]
+    public string lockedByInteractFlagMessage = "ロックされている。まだ入る必要はなさそうだ。";
+
+    [Tooltip("鍵(Requires Key)を持っていない時のメッセージ")]
+    public string lockedByKeyMessage = "ロックされている。特定のキーカードが必要なようだ。";
+
+    [Tooltip("フラグ(Requires Flag)がONになっていない時のメッセージ")]
+    public string lockedByFlagMessage = "ロックされている。電力の供給やシステムの操作が必要なようだ。";
+
+    [Tooltip("壊れている(Broken)時のメッセージ")]
+    public string brokenMessage = "システムエラー。扉が完全に破損している。";
 
     [Header("ドアの割り当て(main:左、sub:右)")]
     [Tooltip("片開きの場合はここだけセットしてください（通常は左側）")]
@@ -40,9 +58,6 @@ public class DoorController : MonoBehaviour, IInteractable
     [Tooltip("開ききってから閉まり始めるまでの待機時間（秒）")]
     public float autoCloseDelay = 3.0f;
 
-    // ==========================================
-    // 3段階のサウンド設定
-    // ==========================================
     [Header("サウンド設定")]
     public AudioSource audioSource;
     [Tooltip("動き始めの音")]
@@ -51,7 +66,6 @@ public class DoorController : MonoBehaviour, IInteractable
     public AudioClip movingSound; 
     [Tooltip("止まった時の音")]
     public AudioClip endSound;    
-    // ==========================================
 
     private bool isOpen = false;
     private bool isMoving = false;
@@ -65,18 +79,15 @@ public class DoorController : MonoBehaviour, IInteractable
         if (mainDoor != null) mainClosedPos = mainDoor.localPosition;
         if (subDoor != null) subClosedPos = subDoor.localPosition;
 
-        // AudioSourceがセットされていなければ、自分についているものを自動で取得する
         if (audioSource == null) audioSource = GetComponent<AudioSource>();
     }
 
-    // 視線を合わせた時のテキスト表示
     public string GetInteractPrompt()
     {
-        if (isMoving) return ""; // 動いている最中は何も表示しない
+        if (isMoving) return ""; 
 
         if (isOpen)
         {
-            // 開いている時、自動で閉まるドアなら何も出さない。手動なら「閉める」と出す
             return autoClose ? "" : "閉める"; 
         }
 
@@ -84,7 +95,7 @@ public class DoorController : MonoBehaviour, IInteractable
         {
             case DoorType.Normal: return "開ける";
             case DoorType.RequiresKey: return "ロック解除";
-            case DoorType.RequiresFlag: return "開ける"; // 見た目は普通のドアと同じにする
+            case DoorType.RequiresFlag: return "開ける"; 
             case DoorType.Broken: return "調べる";
             default: return "調べる";
         }
@@ -94,86 +105,98 @@ public class DoorController : MonoBehaviour, IInteractable
     {
         if (isMoving) return;
 
-        if (!string.IsNullOrEmpty(myInteractID) && GameManager.Instance != null)
+        // 1. フライング防止のアクセス制限チェック
+        if (!string.IsNullOrEmpty(requiredFlagToInteract) && GameManager.Instance != null)
         {
-            GameManager.Instance.TriggerInteractEvent(myInteractID);
+            if (!GameManager.Instance.GetFlag(requiredFlagToInteract))
+            {
+                UIManager.Instance.ShowMessage(lockedByInteractFlagMessage); 
+                return; 
+            }
         }
 
-        if (!string.IsNullOrEmpty(setFlagOnInteract) && GameManager.Instance != null)
-        {
-            GameManager.Instance.SetFlag(setFlagOnInteract, true);
-        }
-
+        // 2. ドアの開閉処理（消えてしまっていた部分を復旧！）
         if (isOpen && !autoClose)
         {
-            // 手動設定で、すでに開いているなら「閉める」処理を実行
             StartCoroutine(CloseDoors());
         }
         else if (!isOpen)
         {
-            // 閉まっているなら「開ける」判定へ
             TryOpen();
         }
     }
 
     private void TryOpen()
     {
+        bool isUnlockSuccess = false;
+
         switch (doorType)
         {
             case DoorType.Normal:
-                StartCoroutine(OpenDoorsSequence());
+                isUnlockSuccess = true;
                 break;
 
             case DoorType.RequiresKey:
-                // ★修正：requiredKeyがちゃんとセットされているか（nullでないか）を確認する！
                 if (requiredKey != null && InventoryManager.Instance.inventoryList.Contains(requiredKey))
                 {
                     UIManager.Instance.ShowMessage("【" + requiredKey.itemName + "】でロックを解除した。");
-                    doorType = DoorType.Normal; // ★改良：一度開けたら、次からは普通のドアになる
-                    StartCoroutine(OpenDoorsSequence());
+                    doorType = DoorType.Normal; 
+                    isUnlockSuccess = true;
                 }
                 else
                 {
-                    UIManager.Instance.ShowMessage("ロックされている。特定のキーカードが必要なようだ。");
+                    UIManager.Instance.ShowMessage(lockedByKeyMessage);
                 }
                 break;
 
-            // ★追加：フラグで開くドアの処理
             case DoorType.RequiresFlag:
                 if (!string.IsNullOrEmpty(requiredFlag) && GameManager.Instance.GetFlag(requiredFlag))
                 {
                     UIManager.Instance.ShowMessage("ロックが解除された。");
-                    doorType = DoorType.Normal; // ★改良：一度開けたら、次からは普通のドアになる
-                    StartCoroutine(OpenDoorsSequence());
+                    doorType = DoorType.Normal; 
+                    isUnlockSuccess = true;
                 }
                 else
                 {
-                    UIManager.Instance.ShowMessage("ロックされている。電力の供給やシステムの操作が必要なようだ。");
+                    UIManager.Instance.ShowMessage(lockedByFlagMessage);
                 }
                 break;
 
             case DoorType.Broken:
-                UIManager.Instance.ShowMessage("システムエラー。扉が完全に破損している。");
+                UIManager.Instance.ShowMessage(brokenMessage);
                 break;
+        }
+
+        // ロック解除に成功した時だけ、フラグとイベントを発動させる
+        if (isUnlockSuccess)
+        {
+            if (!string.IsNullOrEmpty(myInteractID) && GameManager.Instance != null)
+            {
+                GameManager.Instance.TriggerInteractEvent(myInteractID);
+            }
+
+            if (!string.IsNullOrEmpty(setFlagOnInteract) && GameManager.Instance != null)
+            {
+                GameManager.Instance.SetFlag(setFlagOnInteract, true);
+            }
+
+            StartCoroutine(OpenDoorsSequence());
         }
     }
 
-    // 開く→（必要なら）待つ→閉まる という一連の流れ
     private IEnumerator OpenDoorsSequence()
     {
         isOpen = true;
         
-        // ① ドアを開けるアニメーション（完了するまでここで待機）
         yield return StartCoroutine(MoveDoors(true));
 
-        // ② 自動で閉まる設定がONなら
         if (autoClose)
         {
-            yield return new WaitForSeconds(autoCloseDelay); // 設定した秒数だけ待機
+            yield return new WaitForSeconds(autoCloseDelay); 
             
-            if (isOpen) // 待っている間に何らかの理由で状態が変わっていなければ
+            if (isOpen) 
             {
-                yield return StartCoroutine(MoveDoors(false)); // ドアを閉める
+                yield return StartCoroutine(MoveDoors(false)); 
                 isOpen = false;
             }
         }
@@ -185,30 +208,22 @@ public class DoorController : MonoBehaviour, IInteractable
         isOpen = false;
     }
 
-    // ドアを動かす共通処理
     private IEnumerator MoveDoors(bool isOpening)
     {
         isMoving = true;
         float timeElapsed = 0;
 
-        // ==========================================
-        // ① 動き始めの音（プシュー）
-        // ==========================================
         if (audioSource != null && startSound != null)
         {
             audioSource.PlayOneShot(startSound);
         }
 
-        // ==========================================
-        // ② 動いている最中の音（ガァァァ）をループ再生
-        // ==========================================
         if (audioSource != null && movingSound != null)
         {
             audioSource.clip = movingSound;
             audioSource.loop = true;
             audioSource.Play();
         }
-        // ==========================================
 
         Vector3 mainTarget = isOpening ? mainClosedPos + slideOffset : mainClosedPos;
         Vector3 subTarget = isOpening ? subClosedPos - slideOffset : subClosedPos;
@@ -230,24 +245,19 @@ public class DoorController : MonoBehaviour, IInteractable
         if (mainDoor != null) mainDoor.localPosition = mainTarget;
         if (subDoor != null) subDoor.localPosition = subTarget;
 
-        // ==========================================
-        // ③ ドアが止まったらループを止め、完了音（ガシャン）を鳴らす
-        // ==========================================
         if (audioSource != null)
         {
-            audioSource.Stop();       // ループ音を停止
-            audioSource.loop = false; // ループ設定を元に戻す
+            audioSource.Stop();       
+            audioSource.loop = false; 
 
             if (endSound != null)
             {
                 audioSource.PlayOneShot(endSound);
             }
         }
-        // ==========================================
 
         isMoving = false;
         
-        // 動き終わったらUI（テキスト）を更新する
         if (UIManager.Instance != null)
         {
             UIManager.Instance.ShowInteractPrompt(GetInteractPrompt());

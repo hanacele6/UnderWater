@@ -5,42 +5,51 @@ public class OneTimeInteractable : MonoBehaviour, IInteractable
     public enum InteractMode { EventOnly, PickupOnly, Both }
     
     [Header("【モード設定】")]
-    [Tooltip("EventOnly: 会話などのイベントのみ\nPickupOnly: アイテム取得のみ\nBoth: アイテムを取得してイベントも発生")]
     public InteractMode interactMode = InteractMode.EventOnly;
 
-    [Header("【アイテム情報】 (PickupOnly / Both 用)")]
+    [Header("【アイテム情報】")]
     public ItemData itemData;
 
-    [Header("【イベント連携】 (EventOnly / Both 用)")]
-    [Tooltip("GameEventDataで設定した interactTargetID と同じ合言葉を入力")]
+    [Header("【イベント連携】")]
     public string myInteractID;
 
     [Header("【直接フラグ操作】")]
-    [Tooltip("調べた瞬間にONにしたいフラグ名（空欄なら何もしない）")]
     public string setFlagOnInteract;
+
+
+    [Header("【アクセス制限】")]
+    [Tooltip("このフラグがONの時だけインタラクトできるようにします（空欄ならいつでも可）")]
+    public string requiredFlagToInteract;
+    [Tooltip("ロックされている時に画面に出る文字")]
+    public string lockedPromptMessage = "今はまだ調べる必要はなさそうだ";
     
     [Header("【プロンプト設定】")]
-    [Tooltip("画面に出る文字（例：読む、拾う、調べる）※アイテムがある場合は自動で『[アイテム名] を〜』になります")]
     public string promptMessage = "調べる";
 
     [Header("【演出設定】")]
-    [Tooltip("インタラクトした瞬間に鳴らす効果音")]
     public AudioClip interactSound;
-    [Tooltip("インタラクトした瞬間にその場に出すエフェクトのプレハブ")]
     public GameObject effectPrefab;
 
     [Header("【インタラクト後の処理】")]
-    [Tooltip("チェックを入れると、インタラクト後にオブジェクトが消滅します（証拠品の回収など）")]
     public bool destroyAfterInteract = true;
 
-    // 既に実行されたかどうかのガードフラグ
     private bool hasInteracted = false; 
+
+    // 💡 ロック状態かどうかを判定する便利メソッド
+    private bool IsLocked()
+    {
+        if (string.IsNullOrEmpty(requiredFlagToInteract)) return false; // 条件なし
+        if (GameManager.Instance == null) return false;
+        return !GameManager.Instance.GetFlag(requiredFlagToInteract); // フラグが未達成ならロック
+    }
 
     public string GetInteractPrompt()
     {
         if (hasInteracted) return "";
 
-        // アイテムを拾うモード、かつアイテムデータがある場合は名前付きにする
+        // 💡 ロックされている時は専用のプロンプトを出す
+        if (IsLocked()) return lockedPromptMessage;
+
         if (itemData != null && (interactMode == InteractMode.PickupOnly || interactMode == InteractMode.Both))
         {
             return $"[{itemData.itemName}] を{promptMessage}";
@@ -53,55 +62,38 @@ public class OneTimeInteractable : MonoBehaviour, IInteractable
     {
         if (hasInteracted) return;
 
-        // 1. アイテム取得処理 (PickupOnly または Both の場合)
+        // 💡 ロックされている時はインタラクト処理をさせない
+        if (IsLocked()) return;
+
+        // 1. アイテム取得処理
         if (itemData != null && (interactMode == InteractMode.PickupOnly || interactMode == InteractMode.Both))
         {
             InventoryManager.Instance.AddItem(itemData);
-            
-            if (itemData.category == ItemCategory.Material)
-            {
-                UIManager.Instance.ShowMessage($"【{itemData.itemName}】 を手に入れた");
-            }
-            else
-            {
-                UIManager.Instance.ShowItemPickupDetail(itemData);
-            }
+            if (itemData.category == ItemCategory.Material) UIManager.Instance.ShowMessage($"【{itemData.itemName}】 を手に入れた");
+            else UIManager.Instance.ShowItemPickupDetail(itemData);
         }
 
-        // 2. サウンド再生（統合版AudioManager経由）
-        if (interactSound != null && AudioManager.Instance != null)
-        {
-            AudioManager.Instance.PlaySE(interactSound);
-        }
+        // 2. サウンド再生
+        if (interactSound != null && AudioManager.Instance != null) AudioManager.Instance.PlaySE(interactSound);
 
         // 3. エフェクト生成
-        if (effectPrefab != null)
-        {
-            Instantiate(effectPrefab, transform.position, Quaternion.identity);
-        }
+        if (effectPrefab != null) Instantiate(effectPrefab, transform.position, Quaternion.identity);
 
-        // 4. イベント進行 (EventOnly または Both の場合)
+        // 4. イベント進行
         if (!string.IsNullOrEmpty(myInteractID) && (interactMode == InteractMode.EventOnly || interactMode == InteractMode.Both))
         {
-            if (GameManager.Instance != null)
-            {
-                GameManager.Instance.TriggerInteractEvent(myInteractID);
-            }
+            GameManager.Instance.TriggerInteractEvent(myInteractID);
         }
 
-        if (!string.IsNullOrEmpty(setFlagOnInteract) && GameManager.Instance != null)
+        // 5. 直接フラグを立てる
+        if (!string.IsNullOrEmpty(setFlagOnInteract))
         {
             GameManager.Instance.SetFlag(setFlagOnInteract, true);
         }
 
-        // 5. フラグ更新とプロンプト消去
         hasInteracted = true;
         if (UIManager.Instance != null) UIManager.Instance.ShowInteractPrompt(""); 
 
-        // 6. 消滅判定
-        if (destroyAfterInteract)
-        {
-            Destroy(gameObject);
-        }
+        if (destroyAfterInteract) Destroy(gameObject);
     }
 }

@@ -424,15 +424,44 @@ public class GameManager : MonoBehaviour
 
     public void SetFlag(string targetFlagName, bool value)
     {
+        // ==========================================
+        // 💡 鉄壁のフライング防止ガード
+        // ==========================================
+        if (value == true) // フラグをONにしようとした時だけチェック
+        {
+            foreach (var mission in missionList)
+            {
+                if (mission.targetFlagNames.Contains(targetFlagName))
+                {
+                    // このフラグを要求しているミッションが、現在出現しているか条件チェック
+                    bool isAppearFlagSet = string.IsNullOrEmpty(mission.requiredFlagToAppear) || GetFlag(mission.requiredFlagToAppear);
+                    bool isTimeMet = true;
+                    if (mission.appearDay > 0)
+                    {
+                        if (currentDay < mission.appearDay) isTimeMet = false;
+                        else if (currentDay == mission.appearDay && currentPhase < mission.appearPhase) isTimeMet = false;
+                    }
+                    else
+                    {
+                        if (currentPhase < mission.appearPhase) isTimeMet = false;
+                    }
+
+                    // ★ まだ発生していない未来のミッションのフラグなら、登録を完全に拒否する！
+                    if (!(isAppearFlagSet && isTimeMet))
+                    {
+                        Debug.LogError($"<color=red>【フライング拒否】任務『{mission.displayText}』が未発生のため、フラグ『{targetFlagName}』の書き込みを拒否しました。対象オブジェクトに触れないようロックするか、ミッションの出現フラグ設定を見直してください。</color>");
+                        return; // 処理をここで終了（フラグを立てない）
+                    }
+                }
+            }
+        }
+        // ==========================================
+
         EventFlag existingFlag = activeFlags.Find(f => f.flagName == targetFlagName);
 
         if (existingFlag != null)
         {
-            // ==========================================
-            // すでに同じ状態（ONなのにONにしようとした等）なら、通知を出さずに即終了！
-            // ==========================================
             if (existingFlag.isTrue == value) return;
-
             existingFlag.isTrue = value; 
         }
         else
@@ -442,11 +471,9 @@ public class GameManager : MonoBehaviour
         
         Debug.Log($"フラグ更新: {targetFlagName} = {value}");
 
-        // フラグが「新しく」更新された時だけ、通知とHUDのチェックを行う
         CheckMissionNotification(targetFlagName);
         UpdateMainMissionHUD();
 
-        // 現在イベントが再生中でなければ、新しく条件を満たしたイベントがないか探す
         if (currentPlayingEvent == null)
         {
             GameEventData pendingEvent = CheckForPendingEvents(currentPhase, EventTriggerType.AutoOnPhaseStart);
@@ -474,34 +501,29 @@ public class GameManager : MonoBehaviour
 
         foreach (var mission in missionList)
         {
+            // 💡 追加：そもそも今出現しているミッションか？（出ていないなら通知を無視）
+            bool isAppearFlagSet = string.IsNullOrEmpty(mission.requiredFlagToAppear) || GetFlag(mission.requiredFlagToAppear);
+            if (!isAppearFlagSet) continue;
+
             // ① 目標を「達成」した時の通知
             if (mission.targetFlagNames.Contains(updatedFlag) && GetFlag(updatedFlag) == true)
             {
-                // リストに含まれていた場合、ミッションの「全て」のフラグがONになったか確認する
                 bool isFullyCleared = true;
-                int clearedCount = 0; // （おまけ）進捗表示用
+                int clearedCount = 0;
 
                 foreach (string flag in mission.targetFlagNames)
                 {
-                    if (!GetFlag(flag))
-                    {
-                        isFullyCleared = false;
-                    }
-                    else
-                    {
-                        clearedCount++;
-                    }
+                    if (!GetFlag(flag)) isFullyCleared = false;
+                    else clearedCount++;
                 }
 
                 if (isFullyCleared)
                 {
-                    // 全部ONなら、完全クリアの通知！
                     UIManager.Instance.ShowMissionNotification("目的を達成しました\n" + mission.displayText);
                     return; 
                 }
                 else
                 {
-                    // 全部ではないが、条件の1つをクリアした時の「進捗通知」
                     UIManager.Instance.ShowMissionNotification($"目的の進捗: {clearedCount}/{mission.targetFlagNames.Count}\n" + mission.displayText);
                     return;
                 }
@@ -585,31 +607,7 @@ public class GameManager : MonoBehaviour
 
         foreach (var mission in missionList)
         {
-            // ① クリア済みかどうかの判定
-            bool isCleared = true;
-            foreach (string flagName in mission.targetFlagNames)
-            {
-                if (!GetFlag(flagName)) { isCleared = false; break; }
-            }
-            if (mission.targetFlagNames.Count == 0) isCleared = false;
-
-            if (isCleared && !mission.hasNotifiedClear)
-            {
-                mission.hasNotifiedClear = true; // 2回目以降は出ないようにする
-                
-                if (SubmarineHUD.Instance != null)
-                {
-                    SubmarineHUD.Instance.AddLog($"【任務達成】{mission.displayText}", "#FFFF00");
-                }
-
-                // 💡 追加：ミッション達成時に任意のフラグを自動発行する
-                if (!string.IsNullOrEmpty(mission.setFlagOnClear))
-                {
-                    SetFlag(mission.setFlagOnClear, true);
-                }
-            }
-
-            // ② フラグによる出現条件
+            // 💡 先に出現条件を判定する！
             bool isAppearFlagSet = string.IsNullOrEmpty(mission.requiredFlagToAppear) || GetFlag(mission.requiredFlagToAppear);
 
             bool isTimeMet = true;
@@ -623,10 +621,37 @@ public class GameManager : MonoBehaviour
                 if (currentPhase < mission.appearPhase) isTimeMet = false;
             }
 
-            // ★すべての条件（未クリア ＋ フラグON ＋ 時間到達）を満たしている場合のみ表示する
+            // 💡 「出現条件を満たしている場合のみ」クリア判定を行う
+            bool isCleared = false;
+            if (isAppearFlagSet && isTimeMet)
+            {
+                isCleared = true;
+                foreach (string flagName in mission.targetFlagNames)
+                {
+                    if (!GetFlag(flagName)) { isCleared = false; break; }
+                }
+                if (mission.targetFlagNames.Count == 0) isCleared = false;
+            }
+
+            // 💡 実際にクリアしていて、まだ通知を出していない場合
+            if (isCleared && !mission.hasNotifiedClear)
+            {
+                mission.hasNotifiedClear = true; 
+                
+                if (SubmarineHUD.Instance != null)
+                {
+                    SubmarineHUD.Instance.AddLog($"【任務達成】{mission.displayText}", "#FFFF00");
+                }
+
+                if (!string.IsNullOrEmpty(mission.setFlagOnClear))
+                {
+                    SetFlag(mission.setFlagOnClear, true);
+                }
+            }
+
+            // ★すべての条件（未クリア ＋ フラグON ＋ 時間到達）を満たしている場合のみHUDに表示する
             if (!isCleared && isAppearFlagSet && isTimeMet)
             {
-                // 💡 複数ソナーターゲットの登録
                 if (mission.showOnSonar && mission.sonarTargetLocations != null)
                 {
                     foreach (var loc in mission.sonarTargetLocations)
@@ -651,7 +676,6 @@ public class GameManager : MonoBehaviour
                 if (mission.isMainObjective && string.IsNullOrEmpty(mainQuestText))
                 {
                     mainQuestText = mission.displayText;
-                    
                     if (MissionGuide.Instance != null && mission.targetLocations.Count > 0)
                     {
                         MissionGuide.Instance.SetTargets(mission.targetLocations); 
@@ -661,14 +685,9 @@ public class GameManager : MonoBehaviour
         }
 
         if (activeCount == 0) missionListDisplay += "現在、指示されている任務はありません。";
-
         UIManager.Instance.UpdateMainMission(mainQuestText); 
-        
-        if (SonarManager.Instance != null)
-            SonarManager.Instance.SetMissionTargets(activeSonarTargets);
-
-        if (SubmarineHUD.Instance != null)
-            SubmarineHUD.Instance.UpdateMissionListText(missionListDisplay);
+        if (SonarManager.Instance != null) SonarManager.Instance.SetMissionTargets(activeSonarTargets);
+        if (SubmarineHUD.Instance != null) SubmarineHUD.Instance.UpdateMissionListText(missionListDisplay);
     }
 
     [ContextMenu("日数を進めるテスト")]

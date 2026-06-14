@@ -10,44 +10,66 @@ public class LadderInteractable : MonoBehaviour, IInteractable
     [Tooltip("上にいる時に「降りる」を選んだ場合のワープ先")]
     public Transform bottomDestination;
 
+    // ==========================================
+    // 💡 追加：アクセス制限機能とフラグ送信機能
+    // ==========================================
+    [Header("【アクセス制限】")]
+    [Tooltip("このフラグがONの時だけはしごを使えます（空欄ならいつでも可）")]
+    public string requiredFlagToInteract;
+    
+    [Tooltip("ロックされている時に画面に出る文字")]
+    public string lockedPromptMessage = "今はまだ昇る必要はなさそうだ";
+
+    [Header("【フラグ操作】")]
+    [Tooltip("はしごを使った瞬間にONにしたいフラグ名（空欄なら何もしない）")]
+    public string setFlagOnInteract;
+    // ==========================================
+
     void Start()
     {
-        // 物理的にぶつからないようにする
         Collider col = GetComponent<Collider>();
         col.isTrigger = true;
     }
 
-    // ==========================================
-    // プレイヤーが上と下のどちらにいるかを判定する便利メソッド
-    // ==========================================
     private bool IsPlayerAtBottom(GameObject player)
     {
         if (topDestination == null || bottomDestination == null) return true;
 
-        // ワープ先（上）とワープ先（下）のちょうど真ん中の高さを計算する
         float midY = (topDestination.position.y + bottomDestination.position.y) / 2f;
-        
-        // プレイヤーの高さ（Y座標）が真ん中より低ければ「下にいる」と判定
         return player.transform.position.y < midY;
     }
 
-    // ==========================================
-    // IInteractable の実装
-    // ==========================================
+    // 💡 ロック状態かどうかを判定する
+    private bool IsLocked()
+    {
+        if (string.IsNullOrEmpty(requiredFlagToInteract)) return false; 
+        if (GameManager.Instance == null) return false;
+        return !GameManager.Instance.GetFlag(requiredFlagToInteract); 
+    }
+
     public string GetInteractPrompt()
     {
         if (SubmarineController.Instance != null && SubmarineController.Instance.isPiloting) return "";
 
+        // 💡 ロックされている時の表示
+        if (IsLocked()) return lockedPromptMessage;
+
         GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player == null) return "";
 
-        // 自分が下にいるなら「昇る」、上にいるなら「降りる」を返す
         return IsPlayerAtBottom(player) ? "昇る" : "降りる";
     }
 
     public void Interact()
     {
         if (SubmarineController.Instance != null && SubmarineController.Instance.isPiloting) return;
+
+        // 💡 ロックされている時はワープさせない
+        if (IsLocked())
+        {
+            UIManager.Instance.ShowMessage("上の階へ行く必要はまだなさそうだ。");
+            return;
+        }
 
         if (topDestination == null || bottomDestination == null)
         {
@@ -58,9 +80,13 @@ public class LadderInteractable : MonoBehaviour, IInteractable
         GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player == null) return;
 
-        // 今いる位置に応じて、目標のワープ先を決める
-        Transform targetDest = IsPlayerAtBottom(player) ? topDestination : bottomDestination;
+        // 💡 ワープ成功時にフラグを送信する
+        if (!string.IsNullOrEmpty(setFlagOnInteract) && GameManager.Instance != null)
+        {
+            GameManager.Instance.SetFlag(setFlagOnInteract, true);
+        }
 
+        Transform targetDest = IsPlayerAtBottom(player) ? topDestination : bottomDestination;
         TeleportPlayer(player, targetDest);
     }
 
@@ -69,9 +95,7 @@ public class LadderInteractable : MonoBehaviour, IInteractable
         CharacterController cc = player.GetComponent<CharacterController>();
         if (cc != null) cc.enabled = false;
 
-        // 位置をワープ
         player.transform.position = dest.position;
-        // 向きもワープ先（Destination）の向きに合わせる
         player.transform.rotation = dest.rotation;
 
         if (cc != null) cc.enabled = true;
