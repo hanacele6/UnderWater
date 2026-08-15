@@ -149,9 +149,23 @@ public class EventStage : MonoBehaviour
     public void LookAtSpeaker(string speakerName)
     {
         if (playerCamera == null) return;
+
         if (actorLookTargets.ContainsKey(speakerName))
         {
-            playerCamera.LookAt(actorLookTargets[speakerName]);
+            Transform target = actorLookTargets[speakerName];
+
+            // 💡 ターゲットの名前が「Head」じゃない場合（＝足元ピボットになっている場合）は、
+            // 強制的に Y座標に +1.5m（顔の高さ）足した場所を見る！
+            if (target.name != "Head")
+            {
+                Vector3 eyeLevelPosition = target.position + Vector3.up * 1.5f;
+                playerCamera.LookAt(eyeLevelPosition);
+            }
+            else
+            {
+                // ちゃんと「Head」オブジェクトがあるなら、そこを見る
+                playerCamera.LookAt(target);
+            }
         }
     }
 
