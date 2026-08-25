@@ -30,7 +30,7 @@
 ## 企画書
 
 ゲームデザインの詳細は企画書をご覧ください。
-→ [企画書はこちら](https://github.com/hanacele6/UnderWater/クレイドル・プロトコル.pdf)
+→ [企画書はこちら]([https://github.com/hanacele6/UnderWater/クレイドル・プロトコル.pdf])
 
 ## 開発状況
 
